@@ -1,0 +1,470 @@
+
+\documentclass[10pt,a4paper]{article}
+
+% -----------------------------------------------------
+% PACKAGES
+% -----------------------------------------------------
+\usepackage[margin=0.82in]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{titling}
+\usepackage{titlesec}
+\usepackage{times}
+
+% -----------------------------------------------------
+% DOCUMENT SETTINGS
+% -----------------------------------------------------
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\setlist[itemize]{
+    leftmargin=0.55cm,
+    itemsep=1pt,
+    topsep=2pt,
+    parsep=0pt
+}
+
+\setlist[enumerate]{
+    leftmargin=0.55cm,
+    itemsep=1pt,
+    topsep=2pt,
+    parsep=0pt
+}
+
+% Compact section spacing
+\titlespacing*{\section}{0pt}{9pt}{3pt}
+\titlespacing*{\subsection}{0pt}{6pt}{2pt}
+
+% Section hints
+\newcommand{\BvrHint}[1]{
+    {\normalfont\normalsize\itshape\hfill #1}
+}
+
+% -----------------------------------------------------
+% TITLE
+% -----------------------------------------------------
+
+\title{
+    \vspace{-1.0cm}
+    \textbf{STELLA: Solar Temporal Event Learning \& Likelihood Assessment}
+}
+
+\posttitle{
+    \par\end{center}
+    \begin{center}
+    \normalsize Project Proposal for UCS503P\\
+    Thapar Institute of Engineering and Technology
+    \end{center}
+    \vskip 0.25em
+}
+
+\author{
+\begin{tabular}{cc}
+    \textbf{Aditya Kumar} & \textbf{Pankhil Gupta} \\
+    1024170314 & 1024170322 \\[12pt]
+    \textbf{Hitanshi Antil} & \textbf{Ashish Kumar} \\
+    1024170327 & 1024170341
+\end{tabular}
+}
+
+\date{\today}
+
+% -----------------------------------------------------
+% DOCUMENT
+% -----------------------------------------------------
+
+\begin{document}
+
+\maketitle
+
+% -----------------------------------------------------
+% 1. HIGHER-ORDER GOAL
+% -----------------------------------------------------
+
+\section{Higher-order goal%
+  \BvrHint{\ldots secondary framing}}
+
+This project aims to improve space-weather preparedness by reducing the time between
+the emergence of a significant solar event and an actionable warning. While solar
+flare forecasting is a broader scientific problem, the immediate engineering
+objective is to translate solar X-ray telemetry into a measurable and deployable
+software system for early detection, short-horizon forecasting, and impact assessment.
+
+STELLA (Solar Temporal Event Learning \& Likelihood Assessment) combines temporal
+solar observations, machine-learning-based event detection, forecasting, and
+explainable risk assessment into one monitoring workflow. Rather than only identifying
+a flare after it has developed, the system is designed to determine whether an event
+is emerging, estimate its likelihood and severity, and communicate its potential
+operational relevance.
+
+% -----------------------------------------------------
+% 2. TIME-TO-VALUE
+% -----------------------------------------------------
+
+\section{Time-to-value%
+  \BvrHint{\ldots primary heuristic}}
+
+We will deliver meaningful increments quickly by first establishing a working solar
+telemetry pipeline and visualization layer, followed by a baseline flare detector.
+Forecasting, explainability, and impact assessment will then be added incrementally.
+
+We will prioritize fast feedback over premature model optimization by validating each
+stage independently on historical solar observations before integrating the complete
+pipeline. The separation of nowcasting and forecasting also allows the first iteration
+to provide useful detection capability without waiting for the complete predictive
+system.
+
+Success is defined by what can be delivered and measured in the first iteration:
+reliable telemetry processing, meaningful flare detection, measurable warning lead
+time, and an interpretable user-facing workflow.
+
+% -----------------------------------------------------
+% 3. PROBLEM STATEMENT
+% -----------------------------------------------------
+
+\section{Problem Statement}
+
+Solar flares are sudden releases of energy from the Sun that produce enhanced
+electromagnetic radiation and can contribute to disruptions in radio communication,
+navigation, satellite operations, and other space-dependent infrastructure. The
+engineering challenge is not simply to identify a flare after it occurs, but to
+recognize its emergence early enough to support preparation and response.
+
+Several practical limitations make this difficult. Solar observations from different
+instruments capture complementary physical characteristics, but are often analyzed
+independently. Aditya-L1 provides valuable mission-specific observations, yet its
+available history is much smaller than long-running solar observation archives.
+Furthermore, solar background activity varies considerably over time, making fixed
+thresholds prone to false alarms. Finally, a prediction is less useful operationally
+when users cannot understand why it was generated or what systems may be affected.
+
+\textbf{Why this matters now (contextual relevance):} Increasing dependence on
+satellite communication, navigation, remote sensing, and space-based infrastructure
+makes timely space-weather intelligence increasingly valuable. A system that turns
+raw solar observations into understandable warnings can reduce the gap between
+scientific monitoring and operational decision-making.
+
+% -----------------------------------------------------
+% 4. PROPOSED SOLUTION
+% -----------------------------------------------------
+
+\section{Proposed Solution%
+  \BvrHint{\ldots Software Proposition}}
+
+\subsection{Overview}
+
+Build a real-time solar intelligence system that combines complementary X-ray
+observations associated with Aditya-L1 with temporal machine learning and operational
+visualization. STELLA will use SoLEXS soft X-ray observations and HEL1OS hard X-ray
+observations to capture complementary thermal and higher-energy signatures of solar
+activity.
+
+The system will perform telemetry ingestion, preprocessing, adaptive anomaly
+detection, temporal feature extraction, flare nowcasting, short-horizon forecasting,
+explainable prediction, and impact visualization. The final interface will present
+the current solar state, event likelihood, predicted flare severity, confidence,
+warning lead time, and potential infrastructure risk.
+
+\subsection{Core workflow}
+
+The core workflow is intentionally simple:
+
+\begin{enumerate}
+    \item Solar X-ray telemetry is ingested and synchronized.
+    \item Temporal and spectral features are extracted and unusual activity is
+    identified using adaptive statistics.
+    \item A Conv1D model performs short-window flare nowcasting.
+    \item A dilated Temporal Convolutional Network evaluates longer temporal context
+    and estimates future event likelihood and severity.
+    \item The system generates an explanation and maps the prediction to potential
+    infrastructure risks before presenting an alert through the dashboard.
+\end{enumerate}
+
+This creates a complete operational chain:
+
+\begin{center}
+\textbf{Telemetry $\rightarrow$ Detection $\rightarrow$ Forecast $\rightarrow$
+Explanation $\rightarrow$ Impact $\rightarrow$ Alert}
+\end{center}
+
+\subsection{Operational constraints}
+
+The system is designed as an engineering prototype rather than a replacement for
+operational space-weather agencies. Historical solar observations will be used for
+training and validation where mission-specific data is limited, while historical
+NOAA GOES observations can provide a larger training archive for transfer learning.
+
+Where continuous real-time telemetry is unavailable, historical replay will reproduce
+the chronological behavior of an operational stream. Infrastructure outputs will be
+presented as modeled risk indicators rather than deterministic predictions of physical
+damage. The architecture will also remain modular so that additional solar instruments
+and data products can be incorporated later.
+
+% -----------------------------------------------------
+% 5. SOLUTION APPROACH
+% -----------------------------------------------------
+
+\section{Solution Approach%
+  \BvrHint{\ldots Engineering focus}}
+
+This is an engineering course project, so the focus is on building a measurable,
+deployable temporal intelligence pipeline rather than claiming novel fundamental
+solar-physics research.
+
+\subsection{Temporal feature and anomaly assistance%
+  \BvrHint{\ldots physics-informed}}
+
+STELLA will derive features including soft and hard X-ray flux, flux rise rate,
+spectral hardness, rolling statistics, adaptive z-scores, and cross-instrument
+temporal relationships. A key physics-informed feature is the relationship between
+hard X-ray emission and subsequent soft X-ray evolution, motivated by the Neupert
+effect. This relationship will be used as an additional predictive signal rather
+than as a deterministic forecasting rule.
+
+To handle changing solar background activity, the system will use rolling median
+absolute deviation (MAD):
+
+\[
+MAD = median(|x_i - median(x)|)
+\]
+
+and an adaptive standardized score:
+
+\[
+Z_{adaptive} =
+\frac{x-median(x)}
+{1.4826\times MAD+\epsilon}
+\]
+
+This allows anomaly detection to adapt to changing background conditions rather
+than relying on a single global threshold.
+
+\subsection{Two-stage temporal architecture%
+  \BvrHint{\ldots model design}}
+
+The prediction pipeline separates immediate detection from longer-horizon forecasting.
+The \textbf{Conv1D nowcaster} operates on a short temporal window and estimates
+whether significant flare-like activity is emerging. The \textbf{dilated TCN
+forecaster} then uses a longer temporal context to estimate event likelihood,
+severity, and expected warning lead time.
+
+This cascade is intended to keep the two objectives distinct: the first stage is
+optimized for rapid recognition of emerging signatures, while the second captures
+longer temporal dependencies required for forecasting.
+
+\subsection{Transfer learning%
+  \BvrHint{\ldots limited-data strategy}}
+
+Because mission-specific training data is limited, historical NOAA GOES X-ray
+observations will be used to learn generalized temporal representations. The model
+will first be trained on the larger historical archive, then adapted using available
+Aditya-L1 observations and evaluated on held-out events.
+
+Chronological dataset splits will be preferred to random splits so that future
+observations do not inadvertently influence training and evaluation. This also makes
+the validation procedure more representative of the intended forecasting scenario.
+
+\subsection{Web architecture%
+  \BvrHint{\ldots deployable solution}}
+
+The system will use a modular web architecture. The frontend will provide the
+monitoring dashboard, while a FastAPI backend will handle telemetry ingestion,
+inference requests, historical data, alerts, and system status. Python-based
+inference services will execute the feature-processing and temporal models, with
+REST APIs and WebSockets supporting standard requests and live updates.
+
+The architecture separates frontend, backend, data processing, and inference so
+that individual components can be tested and scaled independently.
+
+\subsection{CI/CD and fast delivery enabler}
+
+CI/CD will automatically build the application, run unit and integration tests,
+validate API contracts and inference sanity checks, and produce repeatable staging
+deployments. This supports frequent incremental releases while reducing the risk
+of breaking the complete monitoring pipeline during model or interface changes.
+
+% -----------------------------------------------------
+% 6. EVALUATION CRITERION
+% -----------------------------------------------------
+
+\section{Evaluation Criterion%
+  \BvrHint{\ldots measurable and attributable}}
+
+We define success using measurable metrics tied directly to the forecasting workflow.
+The primary metric is \textbf{warning lead time}: the time between the first valid
+system warning and the defined reference time for the corresponding solar event.
+
+\subsection{Primary evaluation metric}
+
+\textbf{Warning lead time:} The initial target is at least 15 minutes of useful
+warning for qualifying events, with approximately 30 minutes as a stretch objective.
+The value will be calculated using timestamped telemetry, model predictions, and
+historical flare-event catalogues.
+
+\subsection{Secondary evaluation metrics}
+
+\begin{itemize}
+    \item \textbf{Probability of Detection (POD):} fraction of qualifying events
+    correctly identified.
+    \item \textbf{False Alarm Ratio (FAR):} fraction of generated warnings that do
+    not correspond to qualifying events.
+    \item \textbf{Critical Success Index (CSI):} combined measure of hits, misses,
+    and false alarms.
+    \item \textbf{Inference latency:} time required to convert new telemetry into
+    a prediction.
+    \item \textbf{Forecast calibration:} agreement between predicted likelihoods
+    and observed event frequencies.
+\end{itemize}
+
+\subsection{Pilot validation plan%
+  \BvrHint{\ldots high-level}}
+
+Validation will proceed from offline evaluation to operational replay. First, models
+will be evaluated on chronologically held-out historical events. Historical telemetry
+will then be streamed through the complete pipeline to simulate real-time operation.
+Finally, the deployed system will be evaluated for ingestion latency, inference
+latency, warning generation, false alarms, and dashboard responsiveness.
+
+% -----------------------------------------------------
+% 7. SCALABILITY
+% -----------------------------------------------------
+
+\section{Scalability%
+  \BvrHint{\ldots with foresight}}
+
+The proposition should scale in both theoretical and practical senses.
+
+\begin{enumerate}
+    \item \textbf{Scalable (theoretically):} The system can support increasing
+    telemetry volume and additional instruments through decoupled frontend, backend,
+    and inference services, stateless APIs, asynchronous processing, and indexed
+    historical data.
+    
+    \item \textbf{Operationally deployable (practically):} The system can run on
+    common cloud or local infrastructure using containerized services, managed or
+    local databases, standard Python ML environments, WebSocket-enabled APIs, and
+    CI/CD pipelines.
+\end{enumerate}
+
+The modular design also allows new instruments or derived solar data products to be
+introduced without redesigning the complete application.
+
+% -----------------------------------------------------
+% 8. ENGINE AVAILABILITY HEURISTIC
+% -----------------------------------------------------
+
+\section{Engine availability heuristic}
+
+A mature set of ``engines'' is available to implement this as a solar intelligence
+project. Historical solar X-ray archives provide training and validation data,
+while Python-based scientific and machine-learning frameworks support temporal
+feature processing and model development. Conv1D and Temporal Convolutional Network
+architectures provide established mechanisms for temporal learning.
+
+FastAPI can provide REST and WebSocket services, while React/Vite can support the
+monitoring interface. Standard testing frameworks and CI runners can provide
+repeatable validation and deployment.
+
+We will use these mature components to focus on temporal feature fusion, forecasting,
+explainability, system integration, and measurement rather than inventing new
+infrastructure.
+
+% -----------------------------------------------------
+% 9. PROJECT SCOPE AND DELIVERABLES
+% -----------------------------------------------------
+
+\section{Project scope and deliverables%
+  \BvrHint{\ldots iteration-friendly}}
+
+\subsection{Initial deliverable%
+  \BvrHint{\ldots first iteration}}
+
+The first iteration will establish the minimum end-to-end system:
+
+\begin{itemize}
+    \item Solar telemetry ingestion and preprocessing.
+    \item Historical GOES data pipeline and temporal feature extraction.
+    \item Adaptive MAD-based anomaly detection.
+    \item Initial Conv1D nowcasting model.
+    \item Basic inference API and telemetry visualization.
+    \item Prediction timestamp logging, CI testing, and staging deployment.
+\end{itemize}
+
+The objective is to demonstrate a complete working path from telemetry to an
+interpretable detection output before adding the more advanced forecasting and
+impact layers.
+
+\subsection{Subsequent deliverables}
+
+Subsequent iterations will add the dilated TCN forecasting model, SoLEXS/HEL1OS
+multi-instrument fusion, GOES-to-Aditya-L1 transfer learning, lead-time estimation,
+explainable AI, historical event catalogues, and the India-specific impact layer.
+
+The final dashboard will combine live telemetry, event likelihood, predicted class,
+confidence, lead time, explanation, alerts, and infrastructure risk into a single
+operational view.
+
+% -----------------------------------------------------
+% 10. RISKS AND MITIGATIONS
+% -----------------------------------------------------
+
+\section{Risks and mitigations}
+
+\begin{itemize}
+    \item \textbf{Limited mission-specific data:} use historical GOES observations
+    for pre-training and adapt using available Aditya-L1 data.
+    
+    \item \textbf{Instrument domain shift:} apply instrument-specific normalization
+    and validate individual signals before fusion.
+    
+    \item \textbf{False alarms:} use adaptive thresholds and explicitly measure FAR
+    under different solar activity levels.
+    
+    \item \textbf{Data leakage:} use chronological splits and prevent observations
+    from the same event from crossing training and testing partitions.
+    
+    \item \textbf{Limited real-time telemetry:} maintain a chronological historical
+    replay mode for end-to-end testing.
+    
+    \item \textbf{Model overfitting:} compare against simple baselines and evaluate
+    on held-out events.
+    
+    \item \textbf{Impact uncertainty:} communicate infrastructure results as modeled
+    risk indicators rather than deterministic damage predictions.
+\end{itemize}
+
+% -----------------------------------------------------
+% 11. SUMMARY
+% -----------------------------------------------------
+
+\section{Summary}
+
+This project proposes a deployable solar intelligence platform that converts temporal
+X-ray observations into early-warning information for significant solar events. It
+emphasizes time-to-value through rapid iterations, CI/CD for reliable releases, and
+measurable evaluation through warning lead time, detection performance, false alarms,
+and inference latency.
+
+STELLA combines multi-instrument observations, adaptive anomaly detection, Conv1D
+nowcasting, TCN forecasting, transfer learning, explainable AI, and impact
+visualization within a single workflow. The system remains focused on engineering
+a reliable decision-support pipeline rather than claiming novel solar-physics
+discovery.
+
+Its modular architecture supports future instruments and data products, while
+historical replay enables meaningful validation even when continuous real-time
+telemetry is unavailable. The final system provides a unified interface to observe
+solar activity, identify emerging events, estimate their likelihood, understand
+prediction drivers, and assess potential infrastructure relevance.
+
+\end{document}
+
