@@ -1,4 +1,4 @@
-﻿SHELL           := /usr/bin/zsh
+SHELL           := /usr/bin/zsh
 
 ### ---------------------------------------------------
 ### Icons
@@ -55,4 +55,45 @@ $(ICONS_FOLDER)/simple/%.svg: $(ICONS_FOLDER)/simple
 
 $(ICONS_FOLDER)/simple $(ICONS_FOLDER) :
 	mkdir -p $(@)
+### ---------------------------------------------------
+
+### ---------------------------------------------------
+### STELLA / Helios-Cortex (Python + frontend)
+### ---------------------------------------------------
+PYTHON		?= python
+API_HOST	?= 127.0.0.1
+API_PORT	?= 8000
+FRONTEND	?= frontend
+
+help:			## show targets
+	@echo "docs  : serve mkdocs         | install: pip install -e .[dev]"
+	@echo "api   : run FastAPI backend  | frontend: run Vite dashboard"
+	@echo "data  : download GOES data   | test: run pytest suite"
+
+install:		## install package + dev extras
+	$(PYTHON) -m pip install -e ".[dev]"
+
+api:			## run FastAPI backend with hot-reload
+	$(PYTHON) -m uvicorn api.main:app --reload --host $(API_HOST) --port $(API_PORT)
+
+frontend:		## install deps + run Vite dev server
+	cd $(FRONTEND) && npm install && npm run dev
+
+data:			## download NOAA GOES data into data/raw
+	$(PYTHON) scripts/download_data.py
+
+train-nowcaster:
+	$(PYTHON) scripts/train_nowcaster.py
+
+train-forecaster:
+	$(PYTHON) scripts/train_forecaster.py
+
+test:			## run pytest suite
+	$(PYTHON) -m pytest tests/ -v
+
+lint:
+	$(PYTHON) -m ruff check api pipeline scripts tests
+	$(PYTHON) -m black --check api pipeline scripts tests
+
+.PHONY: help install api frontend data train-nowcaster train-forecaster test lint
 ### ---------------------------------------------------

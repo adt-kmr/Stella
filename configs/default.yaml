@@ -1,0 +1,46 @@
+# STELLA / Helios-Cortex default configuration
+# Loaded by scripts and services; override via .env / CLI flags.
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  goes_events_url: https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json
+
+features:
+  sequence_length: 30
+  context_length: 180
+  rise_window: 5
+  mad_window: 15
+
+thresholds:
+  mad_k: 6.0
+  min_event_steps: 3
+
+models:
+  nowcaster:
+    n_channels: 5
+    hidden: 64
+    kernel: 5
+  forecaster:
+    n_channels: 5
+    channels: [32, 32, 64]
+    kernel: 5
+    dropout: 0.1
+
+training:
+  epochs: 50
+  batch_size: 32
+  learning_rate: 0.001
+  seed: 0
+
+inference:
+  lead_min: 30
+  min_confidence: 0.5
+  threshold_class: M1.0
+
+api:
+  host: 127.0.0.1
+  port: 8000
+
+frontend:
+  dev_port: 5173

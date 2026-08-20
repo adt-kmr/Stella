@@ -3,38 +3,41 @@
 **UCS503: Software Engineering (Project)**  
 **TIET Patiala**
 
-# The Sum Function in C++
+# STELLA — Solar Temporal Event Learning & Likelihood Assessment
 
-**Author(s)**:
+**Author(s):** The STELLA Team
 
-`(RGB)` Raghav B. Venkataramaiyer `<bv.raghav -at-
-thapar -dot- edu>`
+## Helios-Cortex
 
-This project creates a sum function in c++ as a sample
-to illustrate how to compile a shared library and
-distribute it for use along with the binary.
+> **The Sun never sleeps. Neither does Helios-Cortex.**
+> *We watch. We learn. We warn. 30 minutes before impact.*
 
-## Installation
+STELLA is a solar-flare early-warning research project that fuses Aditya-L1
+(SoLEXS + HEL1OS) telemetry through the Neupert effect to forecast flare
+probability and infrastructure impact 30-60 minutes before a flare reaches
+Earth.
 
-``` shell
-make -C code
-```
+## Modules
 
-This will create create a folder `dist` in `code`
-folder, with following contents
+| Module | Description |
+|--------|-------------|
+| `api/` | FastAPI backend — REST + WebSocket (`uvicorn api.main:app`) |
+| `pipeline/` | Telemetry ingest, Neupert features, MAD thresholds, models, impact |
+| `frontend/` | React (Vite) mission-control dashboard |
+| `scripts/` | Data download, training, evaluation entrypoints |
+| `docs/` | Research methodology and architecture writeups |
 
-```
-dist
- +-lib
- |  \-libbvr_math.so
- +-bin
-    \-run
-```
+See the repository [README](../README.md) for the full project documentation.
 
-## Usage
+## Quickstart
 
 ``` shell
-cd code
-export LD_LIBRARY_PATH=dist/lib
-./dist/bin/run
+pip install -e .[dev]
+make api          # backend -> :8000/docs
+make frontend     # dashboard -> :5173
 ```
+
+## Documentation
+
+- [Architecture](architecture.md)
+- Written methodology and results: see the repository README and `docs/`.

@@ -1,41 +1,69 @@
-﻿
 [build-system]
-requires = ["hatchling","hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tiet-ucs503.github.io/ucs503p-202627odd-template"
-version = "0.0.1"
-authors = [
-  { name="Raghav B. Venkataramaiyer", email="bv.raghav@thapar.edu" },
-]
-# maintainers = [
-#   { name="Raghav B. Venkataramaiyer",
-#     email="bvraghav@gmail.com" },
-# ]
-description = "UCS503 : Software Engineering : Project Sample"
+name = "stella"
+version = "0.1.0"
+description = "STELLA / Helios-Cortex: solar flare early warning by fusing Aditya-L1 SoLEXS + HEL1OS with the Neupert effect."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "STELLA Team" }]
+keywords = ["solar-physics", "flares", "aditya-l1", "neupert", "deep-learning", "nowcasting"]
 classifiers = [
-    # See: https://pypi.org/classifiers/
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Development Status :: 3 - Alpha",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "Operating System :: POSIX",
-    "Programming Language :: Unix Shell",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
-dependencies = ["click"]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pydantic-settings>=2.2",
+    "PyYAML>=6.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+ml = [
+    "torch>=2.1",
+    "scikit-learn>=1.4",
+]
+dev = [
+    "pytest>=8.0",
+    "fastapi[standard]>=0.110",
+    "black>=24.0",
+    "isort>=5.13",
+    "ruff>=0.4",
+    "pre-commit>=3.7",
+]
 
 [project.urls]
-Homepage = "https://github.com/tiet-ucs503/ucs503p-202627odd-template"
-Issues = "https://github.com/tiet-unc512/ucs503p-202627odd-template/issues"
+Homepage = "https://github.com/adt-kmr/Stella"
+Issues = "https://github.com/adt-kmr/Stella/issues"
 
-# Adapted from https://stackoverflow.com/a/50156706
 [tool.pytest.ini_options]
-pythonpath = [
-  "code"
-]
-# THE END -------------------------------------------
+pythonpath = ["api", "pipeline", "code", "."]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["frontend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

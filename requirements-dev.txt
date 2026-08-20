@@ -1,0 +1,15 @@
+# Development / quality tooling for STELLA. Install with:
+#   pip install -r requirements-dev.txt   (or: pip install -e ".[dev]")
+-r requirements.txt
+
+pytest>=8.0
+pytest-asyncio>=0.23
+fastapi[standard]>=0.110
+black>=24.0
+isort>=5.13
+ruff>=0.4
+pre-commit>=3.7
+
+# Optional ML stack -- uncomment when training models:
+# torch>=2.1
+# scikit-learn>=1.4

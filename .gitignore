@@ -1,7 +1,50 @@
+# ------------------------------------------------------------------
+# STELLA / Helios-Cortex
+# ------------------------------------------------------------------
+
+# Trained model weights (large, regenerable) -- never commit.
+models/*
+!models/.gitkeep
+!models/README.md
+
+# Satellite data caches (regenerable via scripts/download_data.py)
+data/*
+!data/.gitkeep
+!data/README.md
+
+# Notebook/quick-prediction artifacts
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.h5
+*.keras
+*.npy
+*.npz
+*.parquet
+*.arrow
+*.joblib
+results/
+
+# Lint/tool caches
+.ruff_cache/
+.mypy_cache/
+
+# Native build outputs (code/ C++ shared lib)
+code/dist/
+*.o
+*.so
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+stats.html
+
 ## Python.gitignore
 ## ----------------------------------------------------
 
-﻿assets/icons/
+assets/icons/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -137,9 +180,6 @@ venv.bak/
 .spyderproject
 .spyproject
 
-# Rope project settings
-.ropeproject
-
 # mkdocs documentation
 /site
 
@@ -265,8 +305,6 @@ acs-*.bib
 *.eledsec[1-9]R
 *.eledsec[1-9][0-9]
 *.eledsec[1-9][0-9]R
-*.eledsec[1-9][0-9][0-9]
-*.eledsec[1-9][0-9][0-9]R
 
 # glossaries
 *.acn
@@ -465,4 +503,3 @@ TSWLatexianTemp*
 # option is specified. Footnotes are the stored in a file with suffix Notes.bib.
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
- 

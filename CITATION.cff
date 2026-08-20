@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use STELLA / Helios-Cortex in your research, please cite this repository."
+title: "STELLA: Solar Temporal Event Learning & Likelihood Assessment (Helios-Cortex)"
+abstract: >-
+  Solar-flare early-warning system fusing Aditya-L1 SoLEXS (soft X-ray)
+  and HEL1OS (hard X-ray) telemetry via the Neupert effect to forecast
+  flare probability and infrastructure impact 30-60 minutes ahead.
+authors:
+  - family-names: "Kumar"
+    given-names: "Aditya"
+    orcid: ""
+  - family-names: "STELLA Team"
+    given-names: ""
+keywords:
+  - solar physics
+  - flare forecasting
+  - Neupert effect
+  - Aditya-L1
+  - deep learning
+  - nowcasting
+date-released: "2026-08-20"
+license: MIT
+version: "0.1.0"
+url: "https://github.com/adt-kmr/Stella"
