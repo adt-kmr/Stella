@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
-    """Runtime settings for the Helios-Cortex API and inference stack."""
+    """Runtime settings for the STELLA API and inference stack."""
 
     model_config = SettingsConfigDict(
         env_prefix="STELLA_",
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Helios-Cortex"
+    app_name: str = "STELLA"
     app_version: str = "0.1.0"
     debug: bool = False
 

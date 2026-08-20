@@ -1,4 +1,4 @@
-"""Helios-Cortex FastAPI application factory + WebSocket live stream.
+"""STELLA FastAPI application factory + WebSocket live stream.
 
 Run locally:
 

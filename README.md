@@ -6,10 +6,10 @@
 
 <br/>
 
-# ☀️ Helios-Cortex
+# ☀️ STELLA
 
 <p align="center">
-<strong>The Sun never sleeps. Neither does Helios-Cortex.</strong><br/>
+<strong>The Sun never sleeps. Neither does STELLA.</strong><br/>
 We watch. We learn. We warn. <strong>30 minutes before impact.</strong>
 </p>
 
@@ -52,7 +52,7 @@ A solar flare is not the moment it hits Earth — it is the moment it erupts on 
 
 Yes — by exploiting the **Neupert effect** and the unique vantage of ISRO's **Aditya-L1** observatory, which sits at the L1 Sun-Earth Lagrange point where it watches the Sun continuously 24/7, uninterrupted by day/night or eclipses.
 
-STELLA / Helios-Cortex is a two-stage AI pipeline that:
+STELLA is a two-stage AI pipeline that:
 
 1. **Nowcasts** flares from a short soft-X-ray/hard-X-ray window (Conv1D CNN) — catching the impulsive onset seconds-to-minutes early.
 2. **Forecasts** flare probability and lead time from a 3-hour context (dilated TCN) — the early-warning signal operators act on.
@@ -144,7 +144,7 @@ The current state of the art either **detects at T+8 min** (only impact *confirm
 
 # Our Solution
 
-Helios-Cortex is purpose-built for that gap. By fusing data from **two Aditya-L1 instruments simultaneously**, we detect flares **30-60 minutes before their photon front reaches Earth** — while the flare is still developing on the Sun, observed from L1 in near-real-time.
+STELLA is purpose-built for that gap. By fusing data from **two Aditya-L1 instruments simultaneously**, we detect flares **30-60 minutes before their photon front reaches Earth** — while the flare is still developing on the Sun, observed from L1 in near-real-time.
 
 The system is split into two specialised stages instead of one jack-of-all-trades model:
 
@@ -278,7 +278,7 @@ Most flare-forecasting projects offline one model against a small holdout and sh
 | Single monolithic model | Forced tradeoff between detection and lead-time accuracy |
 | Black-box alerts | Operators cannot trust what they cannot inspect |
 
-Helios-Cortex unifies every stage into one disciplined workflow:
+STELLA unifies every stage into one disciplined workflow:
 
 - Multi-Instrument Neupert Fusion
 - MAD-Adaptive Thresholding
@@ -404,7 +404,7 @@ Stella/
 
 # Software Architecture
 
-Helios-Cortex is a layered pipeline — each layer consumes the previous one's output and nothing else.
+STELLA is a layered pipeline — each layer consumes the previous one's output and nothing else.
 
 ```
 Instrument Layer
@@ -499,7 +499,7 @@ Current project state. Everything below is implemented and testable — not aspi
 
 # Experimental Validation
 
-Helios-Cortex is validated against the operational flare-forecasting standard
+STELLA is validated against the operational flare-forecasting standard
 (Hayes et al., 2017) — event-level contingency metrics with explicit floors.
 Values below are the **design targets** the cascade is held to; real figures
 are published to `models/results.json` by `scripts/evaluate.py` and served
@@ -913,11 +913,11 @@ The project builds on classical solar physics and modern sequence modeling:
 
 # Citation
 
-If STELLA / Helios-Cortex contributes to your research, please cite it.
+If STELLA contributes to your research, please cite it.
 
 ```bibtex
 @software{STELLA2026,
-  title={STELLA: Solar Temporal Event Learning \& Likelihood Assessment (Helios-Cortex)},
+  title={STELLA: Solar Temporal Event Learning \& Likelihood Assessment},
   author={Kumar, Aditya and STELLA Team},
   year={2026},
   url={https://github.com/adt-kmr/Stella}
@@ -963,7 +963,7 @@ Every contribution, large or small, helps improve the project.
 
 <div align="center">
 
-# STELLA / Helios-Cortex
+# STELLA
 
 ### Watch - Learn - Warn
 

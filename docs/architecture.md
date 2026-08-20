@@ -1,8 +1,8 @@
 # STELLA Architecture
 
-**Solar Temporal Event Learning & Likelihood Assessment — Helios-Cortex**
+**Solar Temporal Event Learning & Likelihood Assessment**
 
-Helios-Cortex is a layered, two-stage AI pipeline:
+STELLA is a layered, two-stage AI pipeline:
 
 ```
 Instrument Layer  ->  Feature & Decision Layer  ->  Model Layer  ->  Operations Layer

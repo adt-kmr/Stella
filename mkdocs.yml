@@ -53,7 +53,7 @@ extra:
   social:
   - icon: fontawesome/brands/github
     link: https://github.com/adt-kmr/Stella
-    name: Git Repo for STELLA / Helios-Cortex
+    name: Git Repo for STELLA
 
 extra_css:
   - assets/stylesheets/extra.css

@@ -1,4 +1,4 @@
-// Typed API client for the Helios-Cortex backend.
+// Typed API client for the STELLA backend.
 // In development the Vite proxy forwards /api and /ws to :8000.
 const BASE = import.meta.env.VITE_API_URL || "/api";
 

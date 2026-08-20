@@ -1,4 +1,4 @@
-"""STELLA / Helios-Cortex inference pipeline.
+"""STELLA inference pipeline.
 
 Telemetry ingest, Neupert-effect feature engineering, adaptive thresholding,
 Conv1D nowcaster + dilated-TCN forecaster, impact assessment and evaluation.

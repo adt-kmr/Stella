@@ -58,7 +58,7 @@ $(ICONS_FOLDER)/simple $(ICONS_FOLDER) :
 ### ---------------------------------------------------
 
 ### ---------------------------------------------------
-### STELLA / Helios-Cortex (Python + frontend)
+### STELLA (Python + frontend)
 ### ---------------------------------------------------
 PYTHON		?= python
 API_HOST	?= 127.0.0.1

@@ -1,6 +1,6 @@
 """Neupert-effect and auxiliary feature engineering.
 
-The central insight of Helios-Cortex: in the Neupert effect, non-thermal
+The central insight of STELLA: in the Neupert effect, non-thermal
 hard X-rays (HEL1OS) peak *before* thermal soft X-rays (SoLEXS). Their
 ratio therefore carries an early-warning signature. All functions are
 numpy-based and leak-free where a window is specified (only past data).

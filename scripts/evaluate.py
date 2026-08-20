@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         df["event_times"].to_numpy() if "event_times" in df else None,
     )
     summary = {
-        "model": "helios-cortex-cascade",
+        "model": "stella-cascade",
         "rows": [
             {"metric": "POD", "value": round(scores.pod, 3)},
             {"metric": "FAR", "value": round(scores.far, 3)},

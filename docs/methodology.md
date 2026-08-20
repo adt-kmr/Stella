@@ -1,6 +1,6 @@
 # STELLA Methodology
 
-> **Solar Temporal Event Learning & Likelihood Assessment — Helios-Cortex**
+> **Solar Temporal Event Learning & Likelihood Assessment — STELLA**
 
 STELLA detects and forecasts solar flares *before their photon front reaches
 Earth* by fusing two Aditya-L1 instruments through the Neupert effect,

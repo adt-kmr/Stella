@@ -37,7 +37,7 @@ def _mkdirs() -> None:
 
 
 def _fetch(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "helios-cortex/0.1"})
+    req = urllib.request.Request(url, headers={"User-Agent": "stella/0.1"})
     with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read()
 

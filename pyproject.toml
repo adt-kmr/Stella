@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "stella"
 version = "0.1.0"
-description = "STELLA / Helios-Cortex: solar flare early warning by fusing Aditya-L1 SoLEXS + HEL1OS with the Neupert effect."
+description = "STELLA: solar flare early warning by fusing Aditya-L1 SoLEXS + HEL1OS with the Neupert effect."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

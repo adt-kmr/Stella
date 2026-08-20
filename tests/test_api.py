@@ -11,7 +11,7 @@ def test_status_endpoint():
     r = client.get("/api/status")
     assert r.status_code == 200
     body = r.json()
-    assert body["system"] == "Helios-Cortex"
+    assert body["system"] == "STELLA"
     assert body["solar_state"] in ("online", "degraded", "offline")
 
 
@@ -59,7 +59,7 @@ def test_metrics_endpoint_shape():
     r = client.get("/api/metrics")
     assert r.status_code == 200
     body = r.json()
-    assert body["model"] == "helios-cortex-cascade"
+    assert body["model"] == "stella-cascade"
     assert {row["metric"] for row in body["rows"]} >= {"POD", "FAR", "CSI", "Lead Time (min)"}
 
 
@@ -82,4 +82,4 @@ def test_update_endpoint_roundtrip():
 def test_root_info():
     r = client.get("/")
     assert r.status_code == 200
-    assert r.json()["system"] == "Helios-Cortex"
+    assert r.json()["system"] == "STELLA"

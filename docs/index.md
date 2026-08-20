@@ -7,9 +7,9 @@
 
 **Author(s):** The STELLA Team
 
-## Helios-Cortex
+## STELLA
 
-> **The Sun never sleeps. Neither does Helios-Cortex.**
+> **The Sun never sleeps. Neither does STELLA.**
 > *We watch. We learn. We warn. 30 minutes before impact.*
 
 STELLA is a solar-flare early-warning research project that fuses Aditya-L1

@@ -1,4 +1,4 @@
-# STELLA / Helios-Cortex default configuration
+# STELLA default configuration
 # Loaded by scripts and services; override via .env / CLI flags.
 
 data:

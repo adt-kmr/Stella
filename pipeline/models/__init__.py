@@ -1,4 +1,4 @@
-"""Neural models for the Helios-Cortex cascade (PyTorch).
+"""Neural models for the STELLA cascade (PyTorch).
 
 Import guard: ``torch`` is only required when these modules are imported;
 everything else in ``pipeline`` stays dependency-light.

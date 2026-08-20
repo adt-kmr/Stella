@@ -9,7 +9,7 @@ RiskLevel = Literal["green", "yellow", "orange", "red"]
 
 
 class SystemStatus(BaseModel):
-    system: str = "Helios-Cortex"
+    system: str = "STELLA"
     version: str
     solar_state: Literal["online", "degraded", "offline"]
     data_cache: str
@@ -104,7 +104,7 @@ class MetricRow(BaseModel):
 
 
 class MetricsResponse(BaseModel):
-    model: str = "helios-cortex-cascade"
+    model: str = "stella-cascade"
     rows: list[MetricRow]
 
 

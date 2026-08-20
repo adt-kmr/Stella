@@ -1,6 +1,6 @@
 cff-version: 1.2.0
-message: "If you use STELLA / Helios-Cortex in your research, please cite this repository."
-title: "STELLA: Solar Temporal Event Learning & Likelihood Assessment (Helios-Cortex)"
+message: "If you use STELLA in your research, please cite this repository."
+title: "STELLA: Solar Temporal Event Learning & Likelihood Assessment"
 abstract: >-
   Solar-flare early-warning system fusing Aditya-L1 SoLEXS (soft X-ray)
   and HEL1OS (hard X-ray) telemetry via the Neupert effect to forecast

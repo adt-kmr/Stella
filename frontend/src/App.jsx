@@ -37,7 +37,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>☀️ Helios-Cortex</h1>
+        <h1>☀️ STELLA</h1>
         <span className={`badge ${connected ? "ok" : "idle"}`}>
           {connected ? "🟢 LIVE" : "⚠️ CONNECTING"}
         </span>

@@ -1,4 +1,4 @@
-# STELLA / Helios-Cortex runtime dependencies (backend + pipeline).
+# STELLA runtime dependencies (backend + pipeline).
 # Equivalent to `pip install -e .`; the ML stack is the `[ml]` extra
 # (see pyproject.toml) because torch is heavy.
 fastapi>=0.110

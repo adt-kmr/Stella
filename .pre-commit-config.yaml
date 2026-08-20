@@ -1,4 +1,4 @@
-# Pre-commit hooks for STELLA / Helios-Cortex.
+# Pre-commit hooks for STELLA.
 # Usage: pip install pre-commit && pre-commit install
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
