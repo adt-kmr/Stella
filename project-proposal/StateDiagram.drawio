@@ -1,0 +1,109 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram name="Page-1" id="imPU33PluIrs3WpRWxr_">
+    <mxGraphModel dx="2279" dy="1022" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;" value="STELLA State DIagram" vertex="1">
+          <mxGeometry height="40" width="490" x="180" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="initial" parent="1" style="ellipse;aspect=fixed;html=1;fillColor=#000000;strokeColor=#000000;" value="" vertex="1">
+          <mxGeometry height="24" width="24" x="413" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="TR" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#eef2ff;strokeColor=#818cf8;strokeWidth=2;fontSize=14;align=center;verticalAlign=middle;" value="&lt;b&gt;Telemetry Ready&lt;/b&gt;&lt;br&gt;status = ready&lt;br&gt;Do: receive synchronized telemetry" vertex="1">
+          <mxGeometry height="80" width="250" x="300" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="DA" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#eef2ff;strokeColor=#818cf8;strokeWidth=2;fontSize=14;align=center;verticalAlign=middle;" value="&lt;b&gt;Detecting Activity&lt;/b&gt;&lt;br&gt;method = adaptive detection&lt;br&gt;Do: analyze X-ray features&lt;br&gt;Do: detect unusual activity" vertex="1">
+          <mxGeometry height="95" width="310" x="270" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="NW" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#fff7ed;strokeColor=#fb923c;strokeWidth=2;fontSize=14;align=center;verticalAlign=middle;" value="&lt;b&gt;Nowcasting&lt;/b&gt;&lt;br&gt;model = Conv1D&lt;br&gt;Do: process short temporal window&lt;br&gt;Do: estimate flare likelihood" vertex="1">
+          <mxGeometry height="95" width="260" x="480" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="FC" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#fff7ed;strokeColor=#fb923c;strokeWidth=2;fontSize=14;align=center;verticalAlign=middle;" value="&lt;b&gt;Forecasting&lt;br&gt;&lt;/b&gt;model = Dilated TCN&lt;br&gt;Do: analyze longer temporal context&lt;br&gt;Do: estimate severity and lead time" vertex="1">
+          <mxGeometry height="95" width="260" x="480" y="625" as="geometry" />
+        </mxCell>
+        <mxCell id="RA" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#fff7ed;strokeColor=#fb923c;strokeWidth=2;fontSize=14;align=center;verticalAlign=middle;" value="&lt;b&gt;Risk Assessed&lt;/b&gt;&lt;br&gt;risk = calculated&lt;br&gt;Do: assess infrastructure risk&lt;br&gt;Do: explain prediction" vertex="1">
+          <mxGeometry height="95" width="260" x="480" y="795" as="geometry" />
+        </mxCell>
+        <mxCell id="WP" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#fff1f2;strokeColor=#fb7185;strokeWidth=2;fontSize=14;align=center;verticalAlign=middle;" value="&lt;b&gt;Warning Published&lt;/b&gt;&lt;br&gt;status = warning generated&lt;br&gt;Do: publish warning&lt;br&gt;Do: update dashboard" vertex="1">
+          <mxGeometry height="95" width="260" x="480" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="MO" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#f0fdf4;strokeColor=#4ade80;strokeWidth=2;fontSize=14;align=center;verticalAlign=middle;" value="&lt;b&gt;Monitoring&lt;/b&gt;&lt;br&gt;status = active&lt;br&gt;Do: wait for next telemetry window" vertex="1">
+          <mxGeometry height="80" width="260" x="60" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="initial" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;" target="TR" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="initial" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="TR" value="system initialized">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="TR" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="DA" value="telemetry received">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" value="normal activity">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="419.5" />
+              <mxPoint x="235" y="419.5" />
+              <mxPoint x="235" y="949.5" />
+              <mxPoint x="180" y="949.5" />
+            </Array>
+            <mxPoint x="380" y="380" as="sourcePoint" />
+            <mxPoint x="179.99999999999997" y="990" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="DA" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="NW" value="significant anomaly detected">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="610" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="NW" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="MO" value="low event likelihood">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="780" y="585" />
+              <mxPoint x="780" y="1130" />
+              <mxPoint x="225" y="1130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="NW" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="FC" value="flare-like activity confirmed">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="FC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="RA" value="likelihood and severity estimated">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="RA" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="MO" value="low or uncertain risk">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="843" />
+              <mxPoint x="430" y="940" />
+              <mxPoint x="250" y="940" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="RA" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="WP" value="operational risk identified">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="WP" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="MO" value="alert delivered">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="1030" />
+              <mxPoint x="355" y="1030" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="MO" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;strokeWidth=1.5;fontSize=12;" target="DA" value="next telemetry window">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="55" y="1030" />
+              <mxPoint x="55" y="255" />
+              <mxPoint x="270" y="255" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
