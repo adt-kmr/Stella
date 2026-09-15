@@ -1,124 +1,114 @@
-import { useEffect, useState } from "react";
-import { alerts, impact, metrics as fetchMetrics, status } from "./api/client.js";
-import { useLiveFrame } from "./hooks/useLiveFrame.js";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import Landing from './components/Landing';
+import Header from './components/Header';
+import Dashboard from './components/Dashboard';
+import ImpactPanel from './components/ImpactPanel';
+import Replay from './components/Replay';
+import Catalog from './components/Catalog';
+import Metrics from './components/Metrics';
+import { initWebSocketConnection, requestNotificationPermission, useNotificationWatcher } from './lib/data';
 
-const RISK_STYLE = {
-  green: "#16a34a",
-  yellow: "#eab308",
-  orange: "#ea580c",
-  red: "#dc2626",
-};
+// ── Hash-based routing helpers ─────────────────────────────
+function getViewFromHash() {
+  const hash = window.location.hash.replace('#', '');
+  const valid = ['dashboard', 'impact', 'replay', 'catalog', 'metrics'];
+  return valid.includes(hash) ? hash : null;
+}
 
-function Panel({ title, children }) {
-  return (
-    <section className="panel">
-      <h2>{title}</h2>
-      {children}
-    </section>
-  );
+function setHash(view) {
+  window.location.hash = view;
 }
 
 export default function App() {
-  const { frame, connected } = useLiveFrame();
-  const [sys, setSys] = useState(null);
-  const [alertList, setAlertList] = useState([]);
-  const [impactData, setImpactData] = useState(null);
-  const [metricRows, setMetricRows] = useState([]);
+  // Read initial view from URL hash, default to 'dashboard'
+  const initialView = getViewFromHash() || 'dashboard';
+  // If we came from a hash, skip landing; otherwise show it
+  const hasHashOnLoad = useRef(!!window.location.hash);
+
+  const [showLanding, setShowLanding] = useState(!hasHashOnLoad.current);
+  const [view, setView] = useState(initialView);
+  const [activeTab, setActiveTab] = useState(initialView);
+  const [replayEvent, setReplayEvent] = useState(null);
+  const [time, setTime] = useState(new Date());
+  const [initDone, setInitDone] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+
+  // Watch flare class for automatic push notifications
+  useNotificationWatcher();
 
   useEffect(() => {
-    status().then(setSys).catch(console.error);
-    alerts().then(setAlertList).catch(console.error);
-    impact().then(setImpactData).catch(console.error);
-    fetchMetrics().then((m) => setMetricRows(m.rows)).catch(console.error);
-  }, []);
+    if (!initDone) {
+      initWebSocketConnection();
+      // Request push notification permission after a short delay
+      setTimeout(() => requestNotificationPermission(), 3000);
+      setInitDone(true);
+    }
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, [initDone]);
 
-  const lead = frame.lead_minutes ?? sys?.lead_minutes ?? 30;
+  // Sync hash whenever view changes
+  useEffect(() => {
+    if (!showLanding) {
+      setHash(view);
+    }
+  }, [view, showLanding]);
+
+  // Listen for popstate (browser back/forward) to sync view
+  useEffect(() => {
+    const onHashChange = () => {
+      const v = getViewFromHash();
+      if (v && v !== activeTab) {
+        setActiveTab(v);
+        setView(v);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [activeTab]);
+
+  const handleView = useCallback((v) => {
+    if (v === activeTab) return;
+    setActiveTab(v);
+    setHash(v);  // update URL hash immediately
+    setTransitioning(true);
+    setTimeout(() => {
+      setView(v);
+      setTimeout(() => setTransitioning(false), 50);
+    }, 180);
+  }, [activeTab]);
+
+  const handleEnter = useCallback(() => {
+    setShowLanding(false);
+    setHash(view);
+  }, [view]);
+
+  if (showLanding) {
+    return <Landing onEnter={handleEnter} />;
+  }
+
+  const mainContent = (
+    <div className="flex-1 overflow-auto" style={{ padding: 'clamp(12px, 2vw, 24px)' }}>
+      {view === 'dashboard' && <Dashboard onNavigate={handleView} />}
+      {view === 'impact' && <ImpactPanel />}
+      {view === 'replay' && <Replay event={replayEvent} />}
+      {view === 'catalog' && <Catalog onReplay={e => { setReplayEvent(e); handleView('replay'); }} />}
+      {view === 'metrics' && <Metrics />}
+    </div>
+  );
 
   return (
-    <div className="app">
-      <header>
-        <h1>☀️ STELLA</h1>
-        <span className={`badge ${connected ? "ok" : "idle"}`}>
-          {connected ? "🟢 LIVE" : "⚠️ CONNECTING"}
-        </span>
-      </header>
-
-      <div className="grid">
-        <Panel title="Solar State">
-          <p>
-            <strong>Status:</strong> {connected ? "🟢 Online" : "⏳ Awaiting telemetry"}
-          </p>
-          <p>
-            <strong>Lead time:</strong> +{lead} min until impact
-          </p>
-        </Panel>
-
-        <Panel title="Nowcast">
-          <p>
-            <strong>Flare:</strong> {frame.flare_class ?? "—"} detected
-          </p>
-        </Panel>
-
-        <Panel title="Forecast">
-          <p>
-            <strong>Confidence:</strong>{" "}
-            {frame.forecast_confidence != null ? `${(frame.forecast_confidence * 100).toFixed(0)}%` : "—"}
-          </p>
-          <p>
-            <strong>Lead time:</strong> +{frame.lead_minutes ?? "—"} min
-          </p>
-        </Panel>
+    <>
+      {/* Main app shell */}
+      <div className="app-shell">
+        <Header view={activeTab} onView={handleView} time={time} onLogoClick={() => {
+          setShowLanding(true);
+          window.location.hash = '';
+        }} />
+        <div className={`flex-1 overflow-auto ${transitioning ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'} transition-all duration-200 ease-out`}>
+          {mainContent}
+        </div>
       </div>
-
-      {impactData && (
-        <Panel title="Impact Assessment">
-          <div className="impact">
-            {impactData.domains.map((d) => (
-              <div key={d.domain} className="risk-row">
-                <span>{d.domain}</span>
-                <span style={{ color: RISK_STYLE[d.risk], fontWeight: 700 }}>{d.risk}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
-
-      {metricRows.length > 0 && (
-        <Panel title="Validation Metrics">
-          <table>
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th>M-class</th>
-                <th>X-class</th>
-                <th>Industry floor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metricRows.map((r) => (
-                <tr key={r.metric}>
-                  <td>{r.metric}</td>
-                  <td>{r.m_class}</td>
-                  <td>{r.x_class}</td>
-                  <td>{r.industry_floor}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Panel>
-      )}
-
-      {alertList.length > 0 && (
-        <Panel title="Recent Alerts">
-          <ul>
-            {alertList.map((a) => (
-              <li key={a.id}>
-                {a.flare_class} · lead +{a.lead_minutes} min · {a.issued_at}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      )}
-    </div>
+    </>
   );
 }
