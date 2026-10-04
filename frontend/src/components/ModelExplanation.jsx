@@ -1,188 +1,219 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useLiveState } from '../lib/data';
+import { useState, useEffect } from 'react';
+import { useLiveState } from '../lib/data.js';
 
-const DIRECTION_STYLES = {
-  positive:     { bar: '#F87171', text: '#F87171', label: 'DRIVING', bg: 'rgba(248,113,113,0.08)' },
-  critical:     { bar: '#EF4444', text: '#EF4444', label: 'CRITICAL', bg: 'rgba(239,68,68,0.10)' },
-  warning:      { bar: '#FBBF24', text: '#FBBF24', label: 'ELEVATED', bg: 'rgba(251,191,36,0.08)' },
-  slight_positive: { bar: '#FB923C', text: '#FB923C', label: 'SUBTLE', bg: 'rgba(251,146,60,0.06)' },
-  elevated:     { bar: '#FB923C', text: '#FB923C', label: 'ELEVATED', bg: 'rgba(251,146,60,0.08)' },
-  stable:       { bar: '#34D399', text: '#34D399', label: 'STABLE', bg: 'rgba(52,211,153,0.06)' },
-  baseline:     { bar: '#8B949E', text: '#8B949E', label: 'BASELINE', bg: 'rgba(139,148,158,0.06)' },
-  neutral:      { bar: '#8B949E', text: '#8B949E', label: 'NEUTRAL', bg: 'rgba(139,148,158,0.06)' },
+/* Feature direction → Measured Colour. Positive contribution is the hot
+   end because it is driving the class up right now. */
+const DIRECTIONS = {
+  positive: { tone: 'near', label: 'driving' },
+  critical: { tone: 'refused', label: 'critical' },
+  warning: { tone: 'near', label: 'elevated' },
+  slight_positive: { tone: 'near', label: 'subtle' },
+  elevated: { tone: 'near', label: 'elevated' },
+  stable: { tone: 'mid', label: 'stable' },
+  baseline: { tone: 'far', label: 'baseline' },
+  neutral: { tone: 'far', label: 'neutral' },
 };
 
+const NOTES = [
+  [
+    'Spectral hardness',
+    'Flaring coronal loops accelerate electrons, so hard X-ray counts climb before the soft thermal flux peaks. That lead is what makes a pre-flare warning possible at all.',
+  ],
+  [
+    'Rise rate and Z-score',
+    'Detects sudden flux jumps against a rolling quiet-Sun baseline. The threshold is derived from the median absolute deviation rather than fixed, because the quiet-Sun level drifts.',
+  ],
+  [
+    'TCN temporal context',
+    'Dilated causal convolutions read the three-hour history at several scales, so a sustained climb reads differently from a single spike.',
+  ],
+];
+
 function FeatureBar({ name, value, importance, direction, description }) {
-  const dir = DIRECTION_STYLES[direction] || DIRECTION_STYLES.stable;
-  const barWidth = Math.max(4, importance * 100);
+  const dir = DIRECTIONS[direction] || DIRECTIONS.stable;
+  const pct = Math.max(2, Math.min(100, importance * 100));
 
   return (
-    <div className="group relative">
-      <div className="flex items-center gap-3 mb-1">
-        {/* Feature name */}
-        <span className="text-[9px] font-mono text-white/60 flex-1 min-w-0 truncate">{name}</span>
-        {/* Direction badge */}
-        <span className="text-[6px] font-mono font-bold px-1 py-0.5 rounded tracking-wider uppercase flex-shrink-0"
-          style={{ background: dir.bg, color: dir.text }}
-        >
-          {dir.label}
+    <div className="feat">
+      <div className="feat__head">
+        <span className="feat__name">{name}</span>
+        <span className={`stateword is-${dir.tone}`}>{dir.label}</span>
+        <span className="feat__pct">{pct.toFixed(0)}%</span>
+      </div>
+      <div className="bar">
+        <i className={`is-${dir.tone}`} style={{ width: `${pct}%` }} />
+      </div>
+      {/* The value is printed rather than hidden behind a hover: a
+          contribution you cannot read is not much of an explanation. */}
+      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'space-between', marginTop: '0.35rem' }}>
+        <span style={{ fontSize: 'var(--ui-sm)', color: 'var(--muted)' }}>
+          {value.toExponential(2)}
         </span>
-        {/* Importance pct */}
-        <span className="text-[8px] font-mono text-white/30 w-8 text-right flex-shrink-0">
-          {(importance * 100).toFixed(0)}%
-        </span>
+        <span style={{ fontSize: 'var(--ui-sm)', color: 'var(--muted)' }}>{description}</span>
       </div>
-      {/* Bar */}
-      <div className="h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{
-            width: `${barWidth}%`,
-            background: dir.bar,
-            boxShadow: `0 0 6px ${dir.bar}`,
-          }}
-        />
-      </div>
-      {/* Tooltip description */}
-      <div className="absolute left-0 -bottom-2 translate-y-full w-64 p-2 rounded-lg glass pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20" style={{ backdropFilter: 'blur(16px)' }}>
-        <p className="text-[8px] font-mono text-white/60 leading-relaxed">{description}</p>
-        <div className="mt-1 text-[7px] font-mono text-white/25">Value: {value.toExponential(2)}</div>
-      </div>
-    </div>
-  );
-}
-
-function Skeleton() {
-  return (
-    <div className="space-y-4 p-2">
-      <div className="flex gap-2 items-center mb-4">
-        <div className="h-6 w-20 bg-white/[0.06] rounded animate-pulse" />
-        <div className="h-6 w-24 bg-white/[0.06] rounded-full animate-pulse" />
-      </div>
-      {[1,2,3,4,5].map(i => (
-        <div key={i} className="space-y-2">
-          <div className="flex gap-2 items-center">
-            <div className="h-3 flex-1 bg-white/[0.04] rounded animate-pulse" />
-            <div className="h-3 w-14 bg-white/[0.04] rounded animate-pulse" />
-          </div>
-          <div className="h-2 bg-white/[0.03] rounded-full animate-pulse" />
-        </div>
-      ))}
     </div>
   );
 }
 
 export default function ModelExplanation() {
   const { flareClass } = useLiveState();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const lastFetched = useRef(null);
+  const [state, setState] = useState({ key: null, data: null, failed: null });
 
-  const fetchExplanation = useCallback(async (fc) => {
-    if (!fc || fc === lastFetched.current) return;
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/explain?flare_class=${encodeURIComponent(fc)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const d = await res.json();
-      setData(d);
-      lastFetched.current = fc;
-    } catch (err) {
-      console.error('XAI fetch failed:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const key = flareClass || null;
 
   useEffect(() => {
-    fetchExplanation(flareClass);
-  }, [flareClass, fetchExplanation]);
+    if (!key) return;
+    let live = true;
 
-  if (loading && !data) return <Skeleton />;
-  if (!data) return <Skeleton />;
+    fetch(`/api/explain?flare_class=${encodeURIComponent(key)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        // The response is stored under the class it was requested for, so a
+        // class change mid-flight cannot leave one class's attribution on
+        // screen under another's heading.
+        if (live) setState({ key, data: d, failed: null });
+      })
+      .catch((err) => {
+        if (live) setState({ key, data: null, failed: err.message || 'request failed' });
+      });
+
+    return () => {
+      live = false;
+    };
+  }, [key]);
+
+  // Only ever show a result that belongs to the class currently on screen.
+  const settled = state.key === key ? state : { data: null, failed: null };
+  const data = settled.data;
+
+  if (settled.failed) {
+    return (
+      <div className="gateblock">
+        <div className="gateblock__head">
+          <span className="gateblock__title">Attribution unavailable</span>
+          <span className="gateblock__verdict">refused</span>
+        </div>
+        <p style={{ margin: 0, fontSize: 'var(--ui-sm)' }}>
+          <code>GET /api/explain?flare_class={flareClass}</code> returned {settled.failed}.
+          Feature contributions are computed per event class, so there is nothing to attribute
+          without it.
+        </p>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="calibrating">
+        <div className="calibrating__bar">
+          <i />
+        </div>
+        <span>Attributing the decision for {flareClass || 'the current class'}</span>
+      </div>
+    );
+  }
 
   const pred = data.prediction;
-  const sortedFeatures = [...data.features].sort((a, b) => b.importance - a.importance);
-  const top3 = data.topContributors;
-
-  // Confidence color
-  const confColor = pred.confidence > 0.7 ? '#34D399' : pred.confidence > 0.4 ? '#FBBF24' : '#F87171';
+  const features = [...data.features].sort((a, b) => b.importance - a.importance);
+  const conf = pred.confidence ?? 0;
+  const confTone = conf > 0.7 ? 'mid' : conf > 0.4 ? 'near' : 'refused';
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-      {/* Live Feature Analysis Column */}
-      <div className="lg:col-span-3 space-y-4">
-        {/* Header - Prediction Summary */}
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono font-bold text-white/40 uppercase tracking-wider">Model Decision</span>
-            <span className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: confColor, border: `1px solid ${confColor}40` }}>
-              {pred.class} · {(pred.confidence * 100).toFixed(0)}% confidence
-            </span>
-          </div>
-          <span className="text-[7px] font-mono text-white/20">{data.flareClass}</span>
+    <>
+      <div className="panel__head">
+        <div>
+          <h2>Why this class</h2>
+          <span className="readout__k">
+            feature attribution for {data.flareClass} · recomputed on class change
+          </span>
         </div>
-
-        {/* Explanation text */}
-        <p className="text-[9px] font-mono text-white/40 leading-relaxed mb-4">
-          {data.explanation}
-        </p>
-
-        {/* Top contributors badges */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {top3.map((name, i) => (
-            <span key={i} className="text-[7px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-white/[0.04] text-white/30 border border-white/[0.06]">
-              #{i+1} {name.length > 25 ? name.slice(0, 25) + '...' : name}
-            </span>
-          ))}
-        </div>
-
-        {/* Feature importance bars */}
-        <div className="space-y-3">
-          {sortedFeatures.map((feat, i) => (
-            <FeatureBar key={i} {...feat} />
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-white/[0.04] mt-3">
-          <span className="text-[6px] font-mono text-white/15">Live explanation · Updated on flare class change</span>
-          <span className="text-[6px] font-mono text-white/15">SHAP-inspired feature attribution</span>
-        </div>
+        <span className={`stateword is-${confTone}`}>
+          {pred.class} · {(conf * 100).toFixed(0)}% confidence
+        </span>
       </div>
 
-      {/* Educational XAI Explanation Card */}
-      <div className="lg:col-span-2 bg-white/[0.015] border border-white/[0.04] rounded-xl p-4 space-y-3 flex flex-col justify-between">
+      <div className="console__grid">
         <div>
-          <div className="text-[10px] font-mono font-bold text-white/80 border-b border-white/[0.06] pb-1.5 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#A78BFA] animate-pulse" />
-            <span>Explainable AI (XAI)</span>
+          <p style={{ margin: '0 0 1.25rem', fontSize: 'var(--ui-base)', color: 'var(--body)', maxWidth: '60ch' }}>
+            {data.explanation}
+          </p>
+
+          {data.topContributors?.length > 0 && (
+            <>
+              <span className="readout__k" style={{ display: 'block', marginBottom: '0.5rem' }}>
+                Largest contributors
+              </span>
+              <ul className="tags" style={{ marginBottom: '1.5rem' }}>
+                {data.topContributors.map((name, i) => (
+                  <li key={i}>
+                    {i + 1}. {name}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <span className="readout__k" style={{ display: 'block', marginBottom: '0.25rem' }}>
+            All features, by importance
+          </span>
+          <div>
+            {features.map((f, i) => (
+              <FeatureBar key={i} {...f} />
+            ))}
           </div>
-          <p className="text-[9px] font-mono text-white/50 leading-relaxed mt-2">
-            Deep learning networks (like our TCN and CNN) are often seen as "black boxes". Explainable AI (XAI) exposes their decision-making logic by calculating the contribution (SHAP score) of each input telemetry feature.
+        </div>
+
+        {/* What the three inputs that matter actually mean. Kept beside
+            the attribution so a reader does not have to leave the sheet
+            to learn what a hardness ratio is. */}
+        <div>
+          <div className="panel__head">
+            <div>
+              <h2>What these inputs are</h2>
+              <span className="readout__k">so the attribution can be argued with</span>
+            </div>
+          </div>
+          <dl className="bench" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
+            {NOTES.map(([term, body]) => (
+              <div key={term} style={{ padding: '0.85rem 0', borderBottom: '1.5px solid var(--rule)' }}>
+                <dt
+                  style={{
+                    display: 'block',
+                    borderBottom: 0,
+                    padding: 0,
+                    color: 'var(--graphite)',
+                    fontWeight: 700,
+                    fontFamily: 'var(--display)',
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {term}
+                </dt>
+                <dd
+                  style={{
+                    borderBottom: 0,
+                    padding: '0.35rem 0 0',
+                    textAlign: 'left',
+                    fontWeight: 400,
+                    fontSize: 'var(--ui-sm)',
+                    color: 'var(--body)',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {body}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p style={{ margin: '1rem 0 0', fontSize: 'var(--ui-sm)', color: 'var(--muted)' }}>
+            Contributions are SHAP-style feature attributions: each input's share of the distance
+            between the model output and its baseline. They describe this decision, not the Sun.
           </p>
         </div>
-        <div className="space-y-2 border-t border-white/[0.04] pt-3">
-          <div className="space-y-1">
-            <span className="text-[8px] font-mono font-bold text-[#A78BFA] block">SPECTRAL HARDNESS:</span>
-            <span className="text-[8.5px] font-mono text-white/40 leading-relaxed block">
-              Key pre-flare indicator. Flaring coronal loops accelerate electrons, causing hard X-ray counts to spike *before* soft thermal X-rays peak.
-            </span>
-          </div>
-          <div className="space-y-1">
-            <span className="text-[8px] font-mono font-bold text-[#A78BFA] block">RISE RATE & Z-SCORE:</span>
-            <span className="text-[8.5px] font-mono text-white/40 leading-relaxed block">
-              Detects sudden flux jumps. An elevated Z-score indicates statistical anomaly against rolling quiet-sun baseline fluctuations.
-            </span>
-          </div>
-          <div className="space-y-1">
-            <span className="text-[8px] font-mono font-bold text-[#A78BFA] block">TCN TEMPORAL CONTEXT:</span>
-            <span className="text-[8.5px] font-mono text-white/40 leading-relaxed block">
-              Dilated causal convolutions capture multi-scale history over a 3-hour window to project flaring probability.
-            </span>
-          </div>
-        </div>
       </div>
-    </div>
+    </>
   );
 }

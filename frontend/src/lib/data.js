@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 // Static configurations and helpers
 export const transferLearning = {
@@ -15,7 +15,7 @@ export function formatUTC(date) {
   if (!date || date === '—') return '—';
   try {
     return new Date(date).toISOString().replace('T', ' ').slice(0, 19);
-  } catch (e) {
+  } catch {
     return date;
   }
 }
@@ -99,14 +99,12 @@ export function subscribe(l) {
 }
 
 export function useLiveState() {
-  const [liveData, setLiveData] = useState(state);
-  
-  useEffect(() => {
-    setLiveData(state);
-    return subscribe(setLiveData);
-  }, []);
-  
-  return liveData;
+  // useSyncExternalStore rather than useState + useEffect. The store is
+  // already external and already has subscribers, so reading it through
+  // the store hook is both shorter and correct under concurrent rendering:
+  // there is no window between mount and subscribe where a frame could be
+  // missed, which is what the setState-in-effect version had to paper over.
+  return useSyncExternalStore(subscribe, getState, getState);
 }
 
 // ------------------------------------------
@@ -192,7 +190,10 @@ function connectWS() {
   if (ws) {
     try {
       ws.close();
-    } catch(e) {}
+    } catch {
+      // A socket already in CLOSING or CLOSED throws on close(). The old
+      // handle is being discarded either way, so there is nothing to do.
+    }
   }
   
   console.log("Connecting to WebSocket:", `${API_WS_HOST}/ws/live`);
@@ -269,7 +270,9 @@ function connectWS() {
 function jsonParse(str) {
   try {
     return JSON.parse(str);
-  } catch (e) {
+  } catch {
+    // A frame that is not JSON is dropped rather than half-applied: partial
+    // state from a malformed frame would be worse than a missed update.
     return null;
   }
 }

@@ -64,10 +64,14 @@ eggs/
 .eggs/
 lib/
 lib64/
-# ...but the frontend's own src/lib is source, not a Python build
-# artifact. Without this the JS data layer is silently untracked.
+# Python packaging's `lib/` also matched frontend/src/lib, which is source.
 !frontend/src/lib/
 !frontend/src/lib/**
+
+# The DragVerse reference implementation the survey-sheet design system was
+# adapted from. Kept on disk as the source of truth for the tokens and rules,
+# not part of this app's build.
+frontend/dashboard/
 parts/
 sdist/
 var/

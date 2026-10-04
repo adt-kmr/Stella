@@ -20,12 +20,52 @@ export default function Replay({ event }) {
 
   const eventId = event?.id ?? 6;
 
+  /* Replay state is remounted per event rather than reset inside an effect.
+     Keying on the event id gives a fresh set of state, a fresh seek
+     position and a stopped transport for free, and it means the previous
+     event's samples can never be shown under the new event's heading while
+     a request is in flight. */
+  return (
+    <ReplayBody
+      key={eventId}
+      event={event}
+      eventId={eventId}
+      playing={playing}
+      setPlaying={setPlaying}
+      cursor={cursor}
+      setCursor={setCursor}
+      speed={speed}
+      setSpeed={setSpeed}
+      source={source}
+      setSource={setSource}
+      points={points}
+      setPoints={setPoints}
+      failed={failed}
+      setFailed={setFailed}
+      innerRef={ref}
+    />
+  );
+}
+
+function ReplayBody({
+  event,
+  eventId,
+  playing,
+  setPlaying,
+  cursor,
+  setCursor,
+  speed,
+  setSpeed,
+  source,
+  setSource,
+  points,
+  setPoints,
+  failed,
+  setFailed,
+  innerRef,
+}) {
   useEffect(() => {
     let live = true;
-    setPoints(null);
-    setFailed(null);
-    setCursor(0);
-    setPlaying(false);
 
     fetch(`/api/replay/${eventId}`)
       .then((r) => {
@@ -36,16 +76,15 @@ export default function Replay({ event }) {
         if (live) setPoints(d.points || []);
       })
       .catch((err) => {
-        if (live) {
-          setFailed(err.message || 'request failed');
-          setPoints([]);
-        }
+        if (!live) return;
+        setFailed(err.message || 'request failed');
+        setPoints([]);
       });
 
     return () => {
       live = false;
     };
-  }, [eventId]);
+  }, [eventId, setPoints, setFailed]);
 
   // The scrub interval. Paused on the last sample rather than wrapping,
   // because a replay that silently restarts reads as a glitch.
@@ -61,7 +100,7 @@ export default function Replay({ event }) {
       });
     }, 1000 / speed);
     return () => clearInterval(timer);
-  }, [playing, speed, points]);
+  }, [playing, speed, points, setCursor, setPlaying]);
 
   const seek = useCallback(
     (e) => {
@@ -70,7 +109,7 @@ export default function Replay({ event }) {
       const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
       setCursor(Math.min(points.length - 1, Math.floor(frac * points.length)));
     },
-    [points]
+    [points, setCursor]
   );
 
   const reset = () => {
@@ -313,7 +352,7 @@ export default function Replay({ event }) {
   };
 
   return (
-    <div className="console" ref={ref}>
+    <div className="console" ref={innerRef}>
       <div className="console__head">
         <div>
           <span className="eyebrow">Sheet 03 · historical replay</span>

@@ -41,7 +41,9 @@ self.addEventListener('push', (e) => {
   let data = {};
   try {
     data = e.data?.json() || {};
-  } catch {}
+  } catch {
+    // A push without JSON body carries no fields; the defaults below stand.
+  }
 
   const title = data.title || 'STELLA Alert';
   const options = {
@@ -62,5 +64,8 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   const url = e.notification.data?.url || '/';
-  e.waitUntil(clients.openWindow(url));
+  // self.clients, not a bare `clients` — in a service worker the client
+  // registry hangs off the global scope object, and an unqualified
+  // reference throws a ReferenceError here.
+  e.waitUntil(self.clients.openWindow(url));
 });

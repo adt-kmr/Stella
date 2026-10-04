@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
-import { createScene, STAGES, PLAN_LOG } from './flux.js';
-import { createAperture } from './aperture.js';
+import { createScene, STAGES, PLAN_LOG } from '../flux.js';
+import { createAperture } from '../aperture.js';
 
 gsap.registerPlugin(ScrollTrigger);
 

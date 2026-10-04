@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { formatUTC } from '../lib/data.js';
 
 /* The Neupert pre-flare threshold. Named constant from
@@ -17,11 +17,20 @@ function tone(value) {
 export default function HardnessMeter({ data, fluxData }) {
   const [hover, setHover] = useState(null);
 
+  /* The two-hour window is time-dependent, so "now" is state driven by a
+     clock rather than read during render. See FluxChart for the same
+     reasoning. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, []);
+
   const series = useMemo(() => {
     if (!fluxData || fluxData.length === 0) return [];
-    const twoHoursAgo = Date.now() - 2 * 3600 * 1000;
+    const twoHoursAgo = now - 2 * 3600 * 1000;
     return fluxData.filter((d) => d.timestamp >= twoHoursAgo);
-  }, [fluxData]);
+  }, [fluxData, now]);
 
   const current = data?.current ?? null;
   const above = current !== null && current >= THRESHOLD;
@@ -29,19 +38,17 @@ export default function HardnessMeter({ data, fluxData }) {
 
   const W = 720;
   const H = 260;
-  const pad = { t: 20, r: 64, b: 36, l: 64 };
+  const pad = useMemo(() => ({ t: 20, r: 64, b: 36, l: 64 }), []);
 
   const scales = useMemo(() => {
     if (series.length < 2) return null;
     const t0 = series[0].timestamp;
     const t1 = series[series.length - 1].timestamp;
-    const x = (ts) => pad.l + ((ts - t0) / Math.max(1, t1 - t0)) * (W - pad.l - pad.r);
-    const y = (v) =>
-      pad.t +
-      (H - pad.t - pad.b) -
-      ((v - 0) / MAX_HARDNESS) * (H - pad.t - pad.b);
+    const { t, r, b, l } = pad;
+    const x = (ts) => l + ((ts - t0) / Math.max(1, t1 - t0)) * (W - l - r);
+    const y = (v) => t + (H - t - b) - ((v - 0) / MAX_HARDNESS) * (H - t - b);
     return { x, y, t0, t1 };
-  }, [series, W, H]);
+  }, [series, pad]);
 
   const handleMove = useCallback(
     (e) => {

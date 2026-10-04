@@ -38,6 +38,16 @@ export default function FluxChart({ data, range, onRange }) {
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(null);
 
+  /* The chart window is "the last N hours", which is time-dependent — so
+     "now" belongs in state driven by a clock, not read inside render. Two
+     renders in the same second could otherwise disagree, and the window
+     would never advance on its own between WebSocket frames. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     if (!expanded) return;
     const onKey = (e) => {
@@ -52,17 +62,20 @@ export default function FluxChart({ data, range, onRange }) {
   }, [expanded]);
 
   const filtered = useMemo(() => {
-    const now = Date.now();
     return data.filter((d) => d.timestamp >= now - range * 3600 * 1000);
-  }, [data, range]);
+  }, [data, range, now]);
 
   // Fixed viewBox rather than a ResizeObserver: the SVG scales to its
   // container, so there is no layout read and no re-render on resize.
   const W = expanded ? 1200 : 720;
   const H = expanded ? 420 : 240;
-  const pad = expanded
-    ? { t: 30, r: 96, b: 46, l: 74 }
-    : { t: 18, r: 52, b: 34, l: 56 };
+  const pad = useMemo(
+    () =>
+      expanded
+        ? { t: 30, r: 96, b: 46, l: 74 }
+        : { t: 18, r: 52, b: 34, l: 56 },
+    [expanded]
+  );
 
   const FL_MIN = 1e-9;
   const FL_MAX = 1e-4;
@@ -71,13 +84,14 @@ export default function FluxChart({ data, range, onRange }) {
     if (filtered.length < 2) return null;
     const t0 = filtered[0].timestamp;
     const t1 = filtered[filtered.length - 1].timestamp;
-    const x = (t) => pad.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - pad.l - pad.r);
+    const { t, r, b, l } = pad;
+    const x = (ts) => l + ((ts - t0) / Math.max(1, t1 - t0)) * (W - l - r);
     const y = (v) =>
-      pad.t +
-      (H - pad.t - pad.b) -
+      t +
+      (H - t - b) -
       ((Math.log10(Math.max(FL_MIN, v)) - Math.log10(FL_MIN)) /
         (Math.log10(FL_MAX) - Math.log10(FL_MIN))) *
-        (H - pad.t - pad.b);
+        (H - t - b);
     return { x, y, t0, t1 };
   }, [filtered, W, H, pad]);
 

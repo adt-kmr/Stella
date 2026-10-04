@@ -30,6 +30,11 @@ export default function App() {
   const route = routeFor(path);
   const View = VIEWS[path];
 
+  // Fires a push notification when the nowcast class escalates to M or
+  // above. Previously imported but never called, so the flare alert path
+  // was dead code.
+  useNotificationWatcher();
+
   // The pipe is opened once. The console lives on the socket; if it drops,
   // data.js falls back to REST polling and retries the socket.
   useEffect(() => {
