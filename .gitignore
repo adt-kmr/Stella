@@ -64,6 +64,10 @@ eggs/
 .eggs/
 lib/
 lib64/
+# ...but the frontend's own src/lib is source, not a Python build
+# artifact. Without this the JS data layer is silently untracked.
+!frontend/src/lib/
+!frontend/src/lib/**
 parts/
 sdist/
 var/
