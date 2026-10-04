@@ -1,153 +1,327 @@
 import { useState, useEffect } from 'react';
+import { useReveal } from '../useReveal.js';
 
-function MetricCard({ label, value, subtitle, colorClass = 'text-[#D4DCE6]' }) {
+/* The gate from pipeline/evaluation.py. A run below this does not get
+   promoted, so it is printed below the gate rather than rounded up. */
+const SKILL_GATE = 0.3;
+
+function Metric({ label, value, note, tone = 'far' }) {
   return (
-    <div className="dash-card p-4 select-none">
-      <div className="dash-card-header-left mb-2">
-        <div className="dash-card-bar" style={{ background: colorClass.includes('green') ? '#34D399' : colorClass.includes('red') ? '#F87171' : colorClass.includes('blue') ? '#38BDF8' : '#FBBF24' }} />
-        <span className="text-[9px] uppercase tracking-widest font-bold font-mono text-[#8B949E]">{label}</span>
+    <div className="readout">
+      <span className="readout__k">{label}</span>
+      <span className={`readout__v is-${tone}`}>{value}</span>
+      {note && <span className="readout__sub">{note}</span>}
+    </div>
+  );
+}
+
+/* FAR is the metric that punishes a model for shouting. Past 0.35 the
+   alarm rate would desensitise an operator, so it takes the hot end. */
+function farTone(far) {
+  if (far > 0.35) return 'refused';
+  if (far > 0.2) return 'near';
+  return 'mid';
+}
+
+function Cell({ value, label, tone, hint }) {
+  return (
+    <div style={{ border: '1.5px solid var(--rule)', padding: '0.9rem', background: 'var(--vellum)' }}>
+      <div className={`readout__v is-${tone}`}>{value}</div>
+      <div className="readout__k" style={{ marginTop: '0.35rem' }}>
+        {label}
       </div>
-      <div className={`text-xl font-bold font-mono ${colorClass}`}>{value}</div>
-      {subtitle && <div className="text-[9px] text-[#566176] font-mono mt-1 leading-normal">{subtitle}</div>}
+      {hint && (
+        <div style={{ fontSize: 'var(--ui-sm)', color: 'var(--muted)', marginTop: '0.25rem' }}>
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
 
 export default function Metrics() {
   const [m, setM] = useState(null);
+  const [failed, setFailed] = useState(null);
+  const ref = useReveal();
 
   useEffect(() => {
-    fetch(`/api/metrics`)
-      .then(r => r.json())
-      .then(data => {
-        setM({
-          podM: data.podM,
-          farM: data.farM,
-          csiM: data.csiM,
-          podX: data.podX,
-          farX: data.farX,
-          csiX: data.csiX,
-          lead: data.meanLeadTime,
-          tp: data.confusion.tp,
-          fn: data.confusion.fn,
-          fp: data.confusion.fp,
-          tn: data.confusion.tn,
-          skill: data.skillScore,
-          total: data.totalEvents,
-          period: data.testPeriod
-        });
+    let live = true;
+    fetch('/api/metrics')
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
       })
-      .catch(err => console.error("Metrics API offline", err));
+      .then((d) => {
+        if (live) setM(d);
+      })
+      .catch((err) => {
+        if (live) setFailed(err.message || 'request failed');
+      });
+    return () => {
+      live = false;
+    };
   }, []);
 
-  if (!m) {
+  if (failed) {
     return (
-      <div className="dash-card p-6 text-center py-12">
-        <span className="text-[#8B949E] text-xs font-mono">Loading model validation metrics...</span>
+      <div className="console">
+        <div className="console__head">
+          <div>
+            <span className="eyebrow">Sheet 05 · model validation</span>
+            <h1 className="title">Validation</h1>
+          </div>
+        </div>
+        <div className="gateblock" data-reveal>
+          <div className="gateblock__head">
+            <span className="gateblock__title">Metrics unavailable</span>
+            <span className="gateblock__verdict">refused</span>
+          </div>
+          <p style={{ margin: 0, fontSize: 'var(--ui-sm)' }}>
+            <code>GET /api/metrics</code> returned {failed}. These figures come from
+            <code> scripts/evaluate.py</code> writing a backtest artifact — without that file
+            there is no validation to show, and no substitute worth printing.
+          </p>
+          <button
+            className="btn btn--ghost btn--sm"
+            style={{ marginTop: '0.75rem' }}
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
+  if (!m) {
+    return (
+      <div className="console">
+        <div className="console__head">
+          <div>
+            <span className="eyebrow">Sheet 05 · model validation</span>
+            <h1 className="title">Validation</h1>
+          </div>
+        </div>
+        <div className="calibrating">
+          <div className="calibrating__bar">
+            <i />
+          </div>
+          <span>Reading the backtest</span>
+        </div>
+      </div>
+    );
+  }
+
+  const c = m.confusion || { tp: 0, fn: 0, fp: 0, tn: 0 };
+  const skill = m.skillScore ?? 0;
+  const passes = skill >= SKILL_GATE;
+
   return (
-    <div className="premium-dash select-none">
-      {/* Header */}
-      <div className="dash-section-head">
-        <span className="dash-section-tag">Validation</span>
-        <h2 className="dash-section-title">Model Validation & Backtest</h2>
-        <p className="dash-section-desc">
-          TEST PERIOD: <span className="text-white font-bold">{m.period}</span> · N={m.total} EVENTS
-        </p>
-      </div>
-
-      {/* M-Class section */}
-      <div className="mb-6">
-        <div className="dash-card-header-left mb-3">
-          <div className="dash-card-bar" style={{ background: 'linear-gradient(180deg, #FFFFFF, #FBBF24)' }} />
-          <span className="dash-card-title">M-Class & Above (Moderate Solar Storms)</span>
+    <div className="console" ref={ref}>
+      <div className="console__head">
+        <div>
+          <span className="eyebrow">Sheet 05 · model validation</span>
+          <h1 className="title">Validation</h1>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="POD" value={m.podM.toFixed(2)} subtitle="Probability of Detection" colorClass="text-green-400" />
-          <MetricCard label="FAR" value={m.farM.toFixed(2)} subtitle="False Alarm Rate" colorClass={m.farM > 0.35 ? 'text-red-400' : 'text-yellow-400'} />
-          <MetricCard label="CSI" value={m.csiM.toFixed(2)} subtitle="Critical Success Index" colorClass="text-blue-400" />
-          <MetricCard label="Mean Lead Time" value={`+${m.lead} Min`} subtitle="Warning Advance vs GOES" colorClass="text-yellow-400" />
+        <div className="console__status">
+          <span className="muted">test period {m.testPeriod || '—'}</span>
+          <span className="muted">n = {m.totalEvents ?? '—'}</span>
         </div>
       </div>
 
-      {/* X-Class section */}
-      <div className="mb-6">
-        <div className="dash-card-header-left mb-3">
-          <div className="dash-card-bar" style={{ background: 'linear-gradient(180deg, #F87171, #EF4444)' }} />
-          <span className="dash-card-title">X-Class Events (Severe Space Weather)</span>
+      {/* ------------------------------------------------------------- M-class */}
+      <section style={{ marginBottom: '2.5rem' }} data-reveal>
+        <div className="panel__head">
+          <div>
+            <h2>M-class and above</h2>
+            <span className="readout__k">moderate storms · the events that reach the grid</span>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MetricCard label="POD (Severe)" value={m.podX.toFixed(2)} subtitle="Severe Detection Prob." colorClass="text-green-400" />
-          <MetricCard label="FAR (Severe)" value={m.farX.toFixed(2)} subtitle="Severe False Alarm Rate" colorClass="text-green-400" />
-          <MetricCard label="CSI (Severe)" value={m.csiX.toFixed(2)} subtitle="Severe Critical Success Index" colorClass="text-blue-400" />
+        <div className="readouts">
+          <Metric label="POD" value={(m.podM ?? 0).toFixed(2)} note="probability of detection" tone="mid" />
+          <Metric
+            label="FAR"
+            value={(m.farM ?? 0).toFixed(2)}
+            note="false alarm rate"
+            tone={farTone(m.farM ?? 0)}
+          />
+          <Metric label="CSI" value={(m.csiM ?? 0).toFixed(2)} note="critical success index" tone="far" />
+          <Metric
+            label="Mean lead"
+            value={m.meanLeadTime != null ? `+${m.meanLeadTime}` : '—'}
+            note="min vs GOES onset"
+            tone="far"
+          />
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------- X-class */}
+      <section style={{ marginBottom: '2.5rem' }} data-reveal>
+        <div className="panel__head">
+          <div>
+            <h2>X-class</h2>
+            <span className="readout__k">severe · the events that reach everything</span>
+          </div>
+        </div>
+        <div className="readouts">
+          <Metric label="POD" value={(m.podX ?? 0).toFixed(2)} note="severe detection" tone="mid" />
+          <Metric label="FAR" value={(m.farX ?? 0).toFixed(2)} note="severe false alarm" tone={farTone(m.farX ?? 0)} />
+          <Metric label="CSI" value={(m.csiX ?? 0).toFixed(2)} note="severe index" tone="far" />
+        </div>
+      </section>
+
+      {/* ------------------------------------------- confusion + skill gate */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 3fr) minmax(18rem, 2fr)',
+          gap: '1.5rem',
+          alignItems: 'start',
+          marginBottom: '2.5rem',
+        }}
+        className="dash-grid"
+      >
+        <div className="panel" data-reveal>
+          <div className="panel__head">
+            <div>
+              <h2>Contingency table</h2>
+              <span className="readout__k">every M-or-above sample the backtest scored</span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr 1fr',
+              gap: '1.5px',
+              background: 'var(--rule)',
+              border: '1.5px solid var(--rule)',
+              maxWidth: '32rem',
+            }}
+          >
+            <div style={{ background: 'var(--vellum-deep)' }} />
+            <div
+              className="readout__k"
+              style={{ background: 'var(--vellum-deep)', padding: '0.6rem', textAlign: 'center' }}
+            >
+              predicted flare
+            </div>
+            <div
+              className="readout__k"
+              style={{ background: 'var(--vellum-deep)', padding: '0.6rem', textAlign: 'center' }}
+            >
+              predicted quiet
+            </div>
+
+            <div
+              className="readout__k"
+              style={{ background: 'var(--vellum-deep)', padding: '0.6rem', display: 'flex', alignItems: 'center' }}
+            >
+              was flare
+            </div>
+            <Cell value={c.tp} label="hit" tone="mid" hint="warned, and it happened" />
+            <Cell value={c.fn} label="missed" tone="refused" hint="happened, and we were quiet" />
+
+            <div
+              className="readout__k"
+              style={{ background: 'var(--vellum-deep)', padding: '0.6rem', display: 'flex', alignItems: 'center' }}
+            >
+              was quiet
+            </div>
+            <Cell value={c.fp} label="false alarm" tone="near" hint="we cried wolf" />
+            <Cell value={c.tn} label="correct quiet" tone="far" hint="nothing, said nothing" />
+          </div>
+
+          <dl className="bench" style={{ marginTop: '1.5rem' }}>
+            <dt>Total scored</dt>
+            <dd>{(c.tp ?? 0) + (c.fn ?? 0) + (c.fp ?? 0) + (c.tn ?? 0)}</dd>
+            <dt>Missed rate</dt>
+            <dd className="is-refused">
+              {((c.fn ?? 0) / Math.max(1, (c.tp ?? 0) + (c.fn ?? 0))).toFixed(2)}
+            </dd>
+            <dt>False alarm rate</dt>
+            <dd className={farTone(m.farM ?? 0)}>
+              {((c.fp ?? 0) / Math.max(1, (c.tp ?? 0) + (c.fp ?? 0))).toFixed(2)}
+            </dd>
+          </dl>
+        </div>
+
+        <div className="panel" data-reveal>
+          <div className="panel__head">
+            <div>
+              <h2>Heidke skill score</h2>
+              <span className="readout__k">against climatology</span>
+            </div>
+          </div>
+
+          {/* The gate. Surfaced rather than smoothed: the verdict is the
+              whole point of this panel. */}
+          <div className={`readout__v is-lg ${passes ? 'is-mid' : 'is-refused'}`}>
+            {skill.toFixed(2)}
+          </div>
+          <div style={{ margin: '0.85rem 0 1.25rem' }}>
+            <span className={`stateword ${passes ? 'is-mid' : 'is-refused'}`}>
+              {passes ? 'above gate' : 'below gate'}
+            </span>
+          </div>
+
+          <div className="gatemeter" aria-hidden="true">
+            <i style={{ '--pass': Math.min(1, skill) }} />
+          </div>
+          <p className="gatemeter__legend">
+            Gate at <b>{SKILL_GATE.toFixed(2)}</b>. HSS compares the model against a
+            climatological baseline that always predicts the most common class, so a model
+            cannot score by being confidently wrong.
+          </p>
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <dl className="bench">
+              <dt>Test period</dt>
+              <dd>{m.testPeriod || '—'}</dd>
+              <dt>Events</dt>
+              <dd>{m.totalEvents ?? '—'}</dd>
+              <dt>Mean lead</dt>
+              <dd>{m.meanLeadTime != null ? `+${m.meanLeadTime} min` : '—'}</dd>
+            </dl>
+          </div>
         </div>
       </div>
 
-      {/* Grid: Confusion Matrix & Skill Score */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Confusion Matrix */}
-        <div className="dash-card p-5 md:col-span-2">
-          <div className="dash-card-header-left mb-4">
-            <div className="dash-card-bar" style={{ background: 'linear-gradient(180deg, #8B949E, #566176)' }} />
-            <span className="dash-card-title">Confusion Matrix (2x2 Contingency Table)</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2 max-w-md font-mono text-[10px]">
-            <div />
-            <div className="text-[#8B949E] font-bold text-center pb-1">PREDICTED +</div>
-            <div className="text-[#8B949E] font-bold text-center pb-1">PREDICTED -</div>
-
-            <div className="text-[#8B949E] font-bold flex items-center pr-2">ACTUAL +</div>
-            <div className="bg-green-500/10 border border-green-500/30 rounded p-2.5 text-center transition-all hover:bg-green-500/15">
-              <div className="text-lg font-black text-green-400">{m.tp}</div>
-              <div className="text-[8px] text-[#566176] font-bold uppercase mt-0.5">True Positive (TP)</div>
-            </div>
-            <div className="bg-red-500/10 border border-red-500/30 rounded p-2.5 text-center transition-all hover:bg-red-500/15">
-              <div className="text-lg font-black text-red-500">{m.fn}</div>
-              <div className="text-[8px] text-[#566176] font-bold uppercase mt-0.5">False Negative (FN)</div>
-            </div>
-
-            <div className="text-[#8B949E] font-bold flex items-center pr-2">ACTUAL -</div>
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-2.5 text-center transition-all hover:bg-yellow-500/15">
-              <div className="text-lg font-black text-yellow-500">{m.fp}</div>
-              <div className="text-[8px] text-[#566176] font-bold uppercase mt-0.5">False Positive (FP)</div>
-            </div>
-            <div className="bg-[#0D1117]/60 border border-[#30363D] rounded p-2.5 text-center transition-all hover:border-[#8B949E]/30">
-              <div className="text-lg font-black text-[#E6EDF3]">{m.tn}</div>
-              <div className="text-[8px] text-[#566176] font-bold uppercase mt-0.5">True Negative (TN)</div>
-            </div>
+      {/* -------------------------------------------------------- definitions */}
+      <div className="panel" data-reveal>
+        <div className="panel__head">
+          <div>
+            <h2>How each figure is computed</h2>
+            <span className="readout__k">so the numbers can be argued with</span>
           </div>
         </div>
-
-        {/* Skill Score Circle Card */}
-        <div className="dash-card p-5 flex flex-col justify-between items-center text-center">
-          <div className="dash-card-header-left mb-4 w-full">
-            <div className="dash-card-bar" style={{ background: '#38BDF8' }} />
-            <span className="dash-card-title">Heidke Skill Score (HSS)</span>
-          </div>
-          <div className="my-auto py-4 space-y-2">
-            <div className="text-4xl font-black font-mono text-blue-400 drop-shadow-[0_0_12px_rgba(52,152,219,0.2)]">
-              {m.skill.toFixed(2)}
-            </div>
-            <div className="text-[10px] text-[#8B949E] font-mono leading-relaxed px-2">
-              HSS = {m.skill.toFixed(2)} vs GOES background cycle noise. Indicates high predictive performance above random chance.
-            </div>
-          </div>
-          <div className="text-[8px] bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-mono font-bold uppercase">
-            Climatology Validated
-          </div>
-        </div>
-      </div>
-
-      {/* Footer framework info */}
-      <div className="dash-card p-4 font-mono text-[9px] text-[#566176] leading-relaxed">
-        <span className="text-[#8B949E] font-bold block mb-1">EVALUATION METRIC DEFINITIONS:</span>
-        • <span className="text-[#8B949E]">POD (Probability of Detection)</span> ensures no flares fire without alarm coverage.<br />
-        • <span className="text-[#8B949E]">FAR (False Alarm Rate)</span> measures reliability to prevent operator alarm desensitization in control rooms.<br />
-        • <span className="text-[#8B949E]">CSI (Critical Success Index)</span> models overall operational safety, balancing POD and FAR.<br />
-        • <span className="text-[#8B949E]">Mean Lead Time</span> calculates the exact minutes of advance warning available before GOES soft X-ray fluxes exceed flare classification threshold levels.
+        <dl className="bench" style={{ gridTemplateColumns: 'minmax(8rem, auto) 1fr' }}>
+          <dt>POD</dt>
+          <dd style={{ textAlign: 'left', fontWeight: 400, color: 'var(--body)' }}>
+            Hits ÷ (hits + missed). A flare nobody warned about is the failure that costs a
+            satellite an hour of safe mode.
+          </dd>
+          <dt>FAR</dt>
+          <dd style={{ textAlign: 'left', fontWeight: 400, color: 'var(--body)' }}>
+            False alarms ÷ (hits + false alarms). Past 0.35 an operator starts ignoring the
+            channel, which costs more than any single miss.
+          </dd>
+          <dt>CSI</dt>
+          <dd style={{ textAlign: 'left', fontWeight: 400, color: 'var(--body)' }}>
+            Hits ÷ (hits + missed + false alarms). Falls when either error grows, so it cannot
+            be traded one-for-one against the other.
+          </dd>
+          <dt>Lead time</dt>
+          <dd style={{ textAlign: 'left', fontWeight: 400, color: 'var(--body)' }}>
+            Minutes between the first warning above threshold and GOES soft X-ray onset. Quoted
+            against GOES because that is the reference the sector already runs on.
+          </dd>
+          <dt>HSS</dt>
+          <dd style={{ textAlign: 'left', fontWeight: 400, color: 'var(--body)' }}>
+            Skill against a climatological baseline. Zero means no better than always guessing
+            the most common class; one means perfect.
+          </dd>
+        </dl>
       </div>
     </div>
   );
