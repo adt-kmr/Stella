@@ -1,17 +1,17 @@
 {
   "name": "STELLA — Solar Temporal Event Learning & Likelihood Assessment",
   "short_name": "STELLA",
-  "description": "STELLA — Real-time solar flare detection and forecasting using Aditya-L1 X-ray instruments. India-specific impact assessment. Software Engineering Project (UCS503).",
+  "description": "Real-time solar flare nowcasting and forecasting from Aditya-L1 X-ray telemetry, with infrastructure impact assessment for India. Software Engineering Project, UCS503.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#eef0ea",
+  "theme_color": "#eef0ea",
   "orientation": "any",
   "scope": "/",
   "icons": [
     {
       "src": "/icon.svg",
-      "sizes": "512x512",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
