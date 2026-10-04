@@ -345,6 +345,44 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* Section head: sheet number, then the one kicker, then heading. */
+.section-head {
+  position: relative;
+  padding-top: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.section-head .sheet-no {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+/* The sheet grid: a content column with a marginalia column in
+   the margin, the way a survey sheet carries notes beside the
+   drawing. Collapses to one column on narrow viewports. */
+.sheet-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--marginalia-w);
+  gap: clamp(1.5rem, 3vw, 3rem);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .sheet-grid { grid-template-columns: minmax(0, 1fr); }
+  .sheet-grid > .marginalia { order: 2; }
+}
+
+/* A content band. Hairline-separated, never shadowed. */
+.band {
+  padding: clamp(3rem, 7vw, 7rem) 0;
+  border-top: var(--rule-w) solid var(--rule);
+}
+
+.band:first-of-type { border-top: 0; }
+
+.band--tight { padding: clamp(2rem, 4vw, 4rem) 0; }
+
 /* Hairline rules. Every one of them. */
 .rule-t { border-top: var(--rule-w) solid var(--rule); }
 .rule-b { border-bottom: var(--rule-w) solid var(--rule); }
