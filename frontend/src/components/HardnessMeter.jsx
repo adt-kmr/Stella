@@ -1,282 +1,281 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { formatUTC } from '../lib/data';
+import { useMemo, useState, useCallback } from 'react';
+import { formatUTC } from '../lib/data.js';
+
+/* The Neupert pre-flare threshold. Named constant from
+   pipeline/thresholds.py — the same 0.06 the rest of the console
+   quotes, not a value re-derived per render. */
+const THRESHOLD = 0.06;
+const MAX_HARDNESS = 0.15;
+
+/** Measured Colour, one mapping for the whole console. */
+function tone(value) {
+  if (value >= THRESHOLD) return 'refused';
+  if (value >= 0.045) return 'near';
+  return 'mid';
+}
 
 export default function HardnessMeter({ data, fluxData }) {
   const [hover, setHover] = useState(null);
-  const [dimensions, setDimensions] = useState({ w: 300, h: 180 });
-  const containerRef = useRef(null);
-  
-  const cw = dimensions.w, ch = dimensions.h;
-  const pad = { t: 16, r: 35, b: 24, l: 35 };
 
-  // Robust ResizeObserver for layout-independent responsiveness
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setDimensions({
-          w: Math.max(150, width),
-          h: Math.max(100, height)
-        });
-      }
-    });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  const chartData = useMemo(() => {
+  const series = useMemo(() => {
     if (!fluxData || fluxData.length === 0) return [];
     const twoHoursAgo = Date.now() - 2 * 3600 * 1000;
-    return fluxData.filter(d => d.timestamp >= twoHoursAgo);
+    return fluxData.filter((d) => d.timestamp >= twoHoursAgo);
   }, [fluxData]);
 
+  const current = data?.current ?? null;
+  const above = current !== null && current >= THRESHOLD;
+  const t = tone(current ?? 0);
+
+  const W = 720;
+  const H = 260;
+  const pad = { t: 20, r: 64, b: 36, l: 64 };
+
   const scales = useMemo(() => {
-    if (!chartData.length) return null;
-    const t0 = chartData[0].timestamp, t1 = chartData[chartData.length - 1].timestamp;
-    const rMin = 0, rMax = 0.15;
-    const thr = 0.06;
-    const thrY = pad.t + ch - pad.t - pad.b - ((thr - rMin) / (rMax - rMin)) * (ch - pad.t - pad.b);
-    return {
-      x: t => pad.l + ((t - t0) / Math.max(1, t1 - t0)) * (cw - pad.l - pad.r),
-      y: r => pad.t + ch - pad.t - pad.b - ((r - rMin) / (rMax - rMin)) * (ch - pad.t - pad.b),
-      thrY, thr, t0, t1
-    };
-  }, [chartData, cw, ch]);
+    if (series.length < 2) return null;
+    const t0 = series[0].timestamp;
+    const t1 = series[series.length - 1].timestamp;
+    const x = (ts) => pad.l + ((ts - t0) / Math.max(1, t1 - t0)) * (W - pad.l - pad.r);
+    const y = (v) =>
+      pad.t +
+      (H - pad.t - pad.b) -
+      ((v - 0) / MAX_HARDNESS) * (H - pad.t - pad.b);
+    return { x, y, t0, t1 };
+  }, [series, W, H]);
 
-  const handleMouseMove = useCallback((e, scalesVal) => {
-    if (!containerRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const sx = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    setHover({ x: pad.l + sx * (cw - pad.l - pad.r), t: scalesVal.t0 + sx * (scalesVal.t1 - scalesVal.t0) });
-  }, [cw]);
+  const handleMove = useCallback(
+    (e) => {
+      if (!scales) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      const ts = scales.t0 + frac * (scales.t1 - scales.t0);
+      let closest = series[0];
+      let best = Infinity;
+      for (const p of series) {
+        const d = Math.abs(p.timestamp - ts);
+        if (d < best) {
+          best = d;
+          closest = p;
+        }
+      }
+      setHover(closest);
+    },
+    [scales, series]
+  );
 
-  const closestPoint = useMemo(() => {
-    if (!hover || !chartData.length || !scales) return null;
-    let closest = chartData[0];
-    let minDiff = Math.abs(chartData[0].timestamp - hover.t);
-    for (const p of chartData) {
-      const diff = Math.abs(p.timestamp - hover.t);
-      if (diff < minDiff) { minDiff = diff; closest = p; }
-    }
-    return closest;
-  }, [hover, chartData, scales]);
-
-  // Determine colors based on hardness ratio levels
-  const currentVal = data.current;
-  const isDanger = currentVal > 0.06;
-  const isWarning = currentVal >= 0.05 && currentVal <= 0.06;
-  
-  let stateColor = '#34D399'; // Safe (Green)
-  let stateGlow = 'rgba(52,211,153,0.1)';
-  if (isDanger) {
-    stateColor = '#F87171'; // Danger (Red)
-    stateGlow = 'rgba(248,113,113,0.25)';
-  } else if (isWarning) {
-    stateColor = '#FBBF24'; // Warning (Amber)
-    stateGlow = 'rgba(251,191,36,0.18)';
-  }
-
-  // Circular gauge math (radius = 40, circumference = 251.32)
-  const radius = 40;
-  const circ = 2 * Math.PI * radius;
-  const maxHardness = 0.15;
-  const pct = Math.min(1.0, Math.max(0.0, currentVal / maxHardness));
-  const strokeOffset = circ * (1 - pct);
-
-  // Position of the 0.06 Threshold Tick on the circular dial (40% of 360 deg = 144 deg. Top is -90 deg, so 54 deg)
-  const thrAngleRad = (54 * Math.PI) / 180;
-  const thrTickX = 50 + radius * Math.cos(thrAngleRad);
-  const thrTickY = 50 + radius * Math.sin(thrAngleRad);
-
-  if (!scales || !chartData.length) {
-    return (
-      <div className="glass-card h-full flex flex-col justify-center items-center p-6 text-center select-none">
-        <div className="w-8 h-8 rounded-full border-2 border-[#30363D] border-t-[#F87171] animate-spin mb-2" />
-        <span className="text-[#8B949E] text-xs font-mono">Hardness indicator initializing...</span>
-      </div>
-    );
-  }
-
-  const firstX = scales.x(chartData[0].timestamp);
-  const lastX = scales.x(chartData[chartData.length - 1].timestamp);
-  const pathLine = chartData.map((d, i) => `${i === 0 ? 'M' : 'L'}${scales.x(d.timestamp)},${scales.y(d.hardnessRatio)}`).join(' ');
-  const pathArea = `${pathLine} L${lastX},${ch - pad.b} L${firstX},${ch - pad.b} Z`;
-
-  const nTicks = cw < 400 ? 3 : 4;
-  const xtickVals = Array.from({ length: nTicks + 1 }, (_, i) => {
-    const t = scales.t0 + (i / nTicks) * (scales.t1 - scales.t0);
-    return { x: scales.x(t), label: new Date(t).toISOString().slice(11, 16) };
-  });
+  const trendWord =
+    data?.trend === 'rising' ? 'rising' : data?.trend === 'falling' ? 'falling' : 'stable';
 
   return (
-    <div className="h-full flex flex-col relative" style={{ overflow: 'hidden' }}>
-      {/* ── CARD HEADER ── */}
-      <div className="dash-card-header">
-        <div className="dash-card-header-left">
-          <div className="dash-card-bar" style={{ background: 'linear-gradient(180deg, #F87171, #FBBF24)' }} />
-          <span className="dash-card-title">Spectral Hardness</span>
-          <span className="dash-card-sub text-white/40">Neupert Pre-flare Warning</span>
+    <>
+      <div className="panel__head">
+        <div>
+          <h2>Spectral hardness</h2>
+          <span className="readout__k">HEL1OS ÷ SoLEXS · Neupert pre-flare signature</span>
         </div>
-
-        {data.preFlareSignal && (
-          <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded font-mono font-bold animate-pulse text-[8px]">
-            ⚠ {data.minutesEarly}M EARLY ALERT
-          </span>
+        {/* Colour is never the only carrier: the state is named in words. */}
+        {above ? (
+          <span className="stateword is-refused">above threshold</span>
+        ) : (
+          <span className="stateword is-mid">below threshold</span>
         )}
       </div>
 
-      {/* ── CARD BODY ── */}
-      <div className="dash-card-body flex-1 flex flex-col sm:flex-row gap-6 items-center overflow-hidden p-4 sm:p-5 h-full">
-        
-        {/* 1. Real-time Glassmorphic Gauge */}
-        <div className="flex flex-col items-center justify-center flex-shrink-0 w-full sm:w-[130px] h-full relative group">
-          <div 
-            className="w-24 h-24 rounded-full flex items-center justify-center relative transition-all duration-500" 
-            style={{
-              background: 'rgba(255, 255, 255, 0.02)',
-              boxShadow: `0 8px 32px 0 ${stateGlow}, inset 0 1px 1px rgba(255, 255, 255, 0.05)`,
-              border: '1px solid rgba(255, 255, 255, 0.04)'
-            }}
-          >
-            {/* Pulsing ring for alerts */}
-            {isDanger && (
-              <div className="absolute inset-0 rounded-full border border-red-400/30 animate-ping opacity-40" />
-            )}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(9rem, 1fr) minmax(0, 3fr)',
+          gap: '1.5rem',
+          alignItems: 'start',
+        }}
+      >
+        {/* -------------------------------------------------- the reading */}
+        <div style={{ display: 'grid', gap: '0.9rem' }}>
+          <div>
+            <span className="readout__k">Hardness ratio</span>
+            <div
+              className={`readout__v is-lg ${current !== null ? `is-${t}` : ''}`}
+              style={{ marginTop: '0.25rem' }}
+            >
+              {current === null ? '—' : current.toFixed(4)}
+            </div>
+          </div>
 
-            {/* SVG Ring Gauge */}
-            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
-              <defs>
-                <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor={stateColor} />
-                  <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.7" />
-                </linearGradient>
-              </defs>
-              
-              {/* Outer track */}
-              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="4.5" />
-              
-              {/* Dynamic progress bar */}
-              <circle 
-                cx="50" cy="50" r="40" 
-                fill="none" 
-                stroke="url(#gaugeGrad)" 
-                strokeWidth="4.5" 
-                strokeDasharray={circ}
-                strokeDashoffset={strokeOffset}
-                transform="rotate(-90 50 50)"
-                strokeLinecap="round"
-                style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)' }}
+          {/* The bar is the gauge. A bar meter rather than a radial dial,
+              because a drawing has no bezel to put a dial in. */}
+          <div className="bar" title={`Current ${current?.toFixed(4)} against a ${THRESHOLD} threshold`}>
+            <i
+              className={current !== null ? `is-${t}` : ''}
+              style={{ width: `${Math.min(100, ((current ?? 0) / MAX_HARDNESS) * 100)}%` }}
+            />
+          </div>
+
+          <dl className="bench">
+            <dt>Threshold</dt>
+            <dd>{THRESHOLD.toFixed(2)}</dd>
+            <dt>Baseline</dt>
+            <dd>{data?.baseline !== undefined ? data.baseline.toFixed(4) : '—'}</dd>
+            <dt>Trend</dt>
+            <dd className={trendWord === 'rising' ? 'is-near' : ''} style={{ color: 'inherit' }}>
+              <span className={`stateword is-${trendWord === 'rising' ? 'near' : trendWord === 'falling' ? 'mid' : 'quiet'}`}>
+                {trendWord}
+              </span>
+            </dd>
+            {data?.preFlareSignal && (
+              <>
+                <dt>Advance</dt>
+                <dd style={{ color: 'var(--near-ink)' }}>+{data.minutesEarly} min</dd>
+              </>
+            )}
+          </dl>
+        </div>
+
+        {/* ---------------------------------------------------- the trace */}
+        {!scales ? (
+          <div className="absent">
+            <p>No hardness samples yet.</p>
+            <p>The ratio needs both bands in the same one-minute sample.</p>
+          </div>
+        ) : (
+          <div className="chartframe" style={{ position: 'relative' }}>
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              preserveAspectRatio="none"
+              onMouseMove={handleMove}
+              onMouseLeave={() => setHover(null)}
+              style={{ height: H }}
+              role="img"
+              aria-label={`Hardness ratio against the ${THRESHOLD} threshold over the last two hours.`}
+            >
+              {/* Above-threshold zone, tinted rather than bordered: the
+                  region is a fact about the data, so it reads as ground. */}
+              <rect
+                x={pad.l}
+                y={pad.t}
+                width={W - pad.l - pad.r}
+                height={scales.y(THRESHOLD) - pad.t}
+                fill="var(--tint-refused)"
               />
 
-              {/* Threshold indicator tick (0.06) */}
-              <circle cx={thrTickX} cy={thrTickY} r="2.2" fill="#FBBF24" style={{ boxShadow: '0 0 8px #FBBF24' }} />
-              <text x={thrTickX + 4} y={thrTickY + 2.5} fill="#FBBF24" fontSize="5.5" fontFamily="monospace" fontWeight="bold">0.06</text>
+              {[0.03, 0.06, 0.09, 0.12].map((v) => (
+                <g key={v}>
+                  <line
+                    x1={pad.l}
+                    y1={scales.y(v)}
+                    x2={W - pad.r}
+                    y2={scales.y(v)}
+                    className="gridline"
+                    strokeDasharray="2,4"
+                  />
+                  <text
+                    x={pad.l - 10}
+                    y={scales.y(v) + 4}
+                    textAnchor="end"
+                    className="ticklabel"
+                  >
+                    {v.toFixed(2)}
+                  </text>
+                </g>
+              ))}
+
+              {/* The threshold itself, named on the axis rather than
+                  left for the reader to infer from the tint. */}
+              <line
+                x1={pad.l}
+                y1={scales.y(THRESHOLD)}
+                x2={W - pad.r}
+                y2={scales.y(THRESHOLD)}
+                stroke="var(--near-ink)"
+                strokeWidth="1.5"
+              />
+              <text
+                x={W - pad.r + 6}
+                y={scales.y(THRESHOLD) + 4}
+                className="threshlabel"
+              >
+                0.06
+              </text>
+
+              <line x1={pad.l} y1={pad.t} x2={pad.l} y2={H - pad.b} className="axisline" />
+              <line x1={pad.l} y1={H - pad.b} x2={W - pad.r} y2={H - pad.b} className="axisline" />
+
+              {Array.from({ length: 5 }, (_, i) => {
+                const ts = scales.t0 + (i / 4) * (scales.t1 - scales.t0);
+                const d = new Date(ts);
+                return (
+                  <text
+                    key={i}
+                    x={scales.x(ts)}
+                    y={H - pad.b + 20}
+                    textAnchor="middle"
+                    className="ticklabel"
+                  >
+                    {String(d.getUTCHours()).padStart(2, '0')}:{String(d.getUTCMinutes()).padStart(2, '0')}
+                  </text>
+                );
+              })}
+
+              <path
+                d={series
+                  .map(
+                    (d, i) =>
+                      `${i === 0 ? 'M' : 'L'}${scales.x(d.timestamp)},${scales.y(d.hardnessRatio)}`
+                  )
+                  .join(' ')}
+                fill="none"
+                stroke={`var(--${t})`}
+                strokeWidth="2"
+              />
+
+              {hover && (
+                <g>
+                  <line
+                    x1={scales.x(hover.timestamp)}
+                    y1={pad.t}
+                    x2={scales.x(hover.timestamp)}
+                    y2={H - pad.b}
+                    stroke="var(--muted)"
+                    strokeWidth="1"
+                    strokeDasharray="2,3"
+                  />
+                  <circle
+                    cx={scales.x(hover.timestamp)}
+                    cy={scales.y(hover.hardnessRatio)}
+                    r="4"
+                    fill={`var(--${tone(hover.hardnessRatio)})`}
+                    stroke="var(--vellum)"
+                    strokeWidth="1.5"
+                  />
+                </g>
+              )}
             </svg>
 
-            {/* Central value readouts */}
-            <div className="flex flex-col items-center justify-center z-10 text-center font-mono">
-              <span className="text-[15px] font-black tracking-tighter" style={{ color: stateColor, textShadow: `0 0 12px ${stateColor}80` }}>
-                {currentVal.toFixed(4)}
-              </span>
-              <span className="text-[7px] text-white/30 uppercase mt-0.5">Ratio</span>
-            </div>
-          </div>
-
-          {/* Trend readout */}
-          <div className="mt-3 text-center font-mono text-[9px]">
-            {data.trend === 'rising' && <span className="text-red-400 font-extrabold animate-pulse">▲ RISING</span>}
-            {data.trend === 'falling' && <span className="text-emerald-400 font-extrabold">▼ FALLING</span>}
-            {data.trend === 'stable' && <span className="text-white/30">■ STABLE</span>}
-          </div>
-        </div>
-
-        {/* 2. Sparkline Trend Line */}
-        <div ref={containerRef} className="flex-1 w-full h-full min-h-[140px] relative overflow-hidden border-l border-white/[0.04] pl-2 sm:pl-4">
-          <svg viewBox={`0 0 ${cw} ${ch}`} className="w-full h-full" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="hrGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stateColor} stopOpacity="0.15" />
-                <stop offset="100%" stopColor={stateColor} stopOpacity="0.00" />
-              </linearGradient>
-              <filter id="hrGlow">
-                <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor={stateColor} floodOpacity="0.3" />
-              </filter>
-            </defs>
-
-            {/* Alert zone background */}
-            <rect x={pad.l} y={0} width={cw - pad.l - pad.r} height={scales.thrY} fill="rgba(248,113,113,0.012)" rx="1" />
-
-            {/* Horizontal Gridlines */}
-            {[0.03, 0.06, 0.09, 0.12].map(val => (
-              <line key={`h-${val}`} x1={pad.l} y1={scales.y(val)} x2={cw - pad.r} y2={scales.y(val)} stroke="rgba(255,255,255,0.03)" strokeWidth={0.5} strokeDasharray="2,3" />
-            ))}
-
-            {/* Y-Axis values */}
-            {[0.03, 0.06, 0.09, 0.12].map(val => (
-              <text key={`yl-${val}`} x={pad.l - 5} y={scales.y(val) + 2} textAnchor="end" fill="#566176" fontSize={6.5} fontFamily="monospace">
-                {val.toFixed(2)}
-              </text>
-            ))}
-
-            {/* Vertical Time Gridlines */}
-            {xtickVals.map((t, i) => (
-              <line key={`v-${i}`} x1={t.x} y1={pad.t} x2={t.x} y2={ch - pad.b} stroke="rgba(255,255,255,0.02)" strokeWidth={0.5} strokeDasharray="2,3" />
-            ))}
-
-            {/* Threshold Line */}
-            <line x1={pad.l} y1={scales.thrY} x2={cw - pad.r} y2={scales.thrY} stroke="#FBBF24" strokeWidth={0.8} strokeDasharray="3,3" />
-            <text x={cw - pad.r + 3} y={scales.thrY + 2.5} fill="#FBBF24" fontSize={6.5} fontFamily="monospace" fontWeight="bold">THR</text>
-
-            {/* Plot Axes */}
-            <line x1={pad.l} y1={pad.t} x2={pad.l} y2={ch - pad.b} stroke="rgba(255,255,255,0.08)" strokeWidth={0.8} />
-            <line x1={pad.l} y1={ch - pad.b} x2={cw - pad.r} y2={ch - pad.b} stroke="rgba(255,255,255,0.08)" strokeWidth={0.8} />
-
-            {/* X-Axis Time Ticks */}
-            {xtickVals.map((t, i) => (
-              <text key={i} x={t.x} y={ch - pad.b + 12} textAnchor="middle" fill="#566176" fontSize={6.5} fontFamily="monospace">{t.label}</text>
-            ))}
-
-            {/* Areas & Lines */}
-            <path d={pathArea} fill="url(#hrGrad)" />
-            <path d={pathLine} fill="none" stroke={stateColor} strokeWidth={1.2} filter="url(#hrGlow)" />
-
-            {/* Hover tooltip pointer */}
-            {closestPoint && (
-              <g>
-                <line x1={scales.x(closestPoint.timestamp)} y1={pad.t} x2={scales.x(closestPoint.timestamp)} y2={ch - pad.b} stroke="rgba(255,255,255,0.12)" strokeWidth={0.5} strokeDasharray="1,2" />
-                <circle cx={scales.x(closestPoint.timestamp)} cy={scales.y(closestPoint.hardnessRatio)} r={3} fill={stateColor} stroke="#FFFFFF" strokeWidth={1} />
-              </g>
+            {hover && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  left: 8,
+                  background: 'var(--vellum)',
+                  border: '1.5px solid var(--graphite)',
+                  padding: '0.5rem 0.65rem',
+                  fontFamily: 'var(--mono)',
+                  fontSize: 'var(--ui-sm)',
+                  pointerEvents: 'none',
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>
+                  {formatUTC(hover.timestamp)}
+                </div>
+                <div style={{ color: 'var(--muted)' }}>
+                  ratio {hover.hardnessRatio.toFixed(4)}
+                </div>
+                <div style={{ color: 'var(--muted)' }}>limit {THRESHOLD.toFixed(2)}</div>
+              </div>
             )}
-
-            {/* Mouse Capture */}
-            <rect 
-              x={pad.l} y={pad.t} width={cw - pad.l - pad.r} height={ch - pad.t - pad.b}
-              fill="transparent"
-              onMouseMove={e => handleMouseMove(e, scales)}
-              onMouseLeave={() => setHover(null)}
-            />
-          </svg>
-
-          {/* Hover interactive tooltip box */}
-          {closestPoint && (
-            <div className="absolute top-1 left-3 bg-[#0D1117]/90 backdrop-blur-md border border-[rgba(255,255,255,0.06)] px-2 py-1 rounded shadow-2xl font-mono text-[8px] space-y-0.5 text-[#8B949E] z-10 select-none pointer-events-none">
-              <div className="text-white border-b border-[rgba(255,255,255,0.05)] pb-0.5 mb-0.5 font-bold text-center text-[8.5px]">
-                {formatUTC(closestPoint.timestamp)}
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-[#566176]">HARDNESS:</span>
-                <span className="text-white font-bold">{closestPoint.hardnessRatio.toFixed(4)}</span>
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-[#566176]">THRESHOLD:</span>
-                <span className="text-[#FBBF24] font-semibold">{scales.thr.toFixed(2)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }

@@ -1,469 +1,466 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { formatUTC } from '../lib/data';
+import { formatUTC } from '../lib/data.js';
+
+/* GOES flux tiers in W/m². Named constants, not tuned values: the
+   classification the pipeline performs is defined by these. */
+const TIERS = [
+  { flux: 1e-8, label: 'A', tone: 'far' },
+  { flux: 1e-7, label: 'B', tone: 'far' },
+  { flux: 1e-6, label: 'C', tone: 'mid' },
+  { flux: 1e-5, label: 'M', tone: 'near' },
+  { flux: 1e-4, label: 'X', tone: 'near' },
+];
+
+const TONE_VAR = {
+  near: 'var(--near)',
+  mid: 'var(--mid)',
+  far: 'var(--far)',
+};
+
+const SUPER = { '1e-8': '10⁻⁸', '1e-7': '10⁻⁷', '1e-6': '10⁻⁶', '1e-5': '10⁻⁵', '1e-4': '10⁻⁴' };
+
+/** The GOES class a flux corresponds to. Derived, never stored. */
+function goesClass(flux) {
+  if (flux >= 1e-4) return `X${(flux * 1e4).toFixed(1)}`;
+  if (flux >= 1e-5) return `M${(flux * 1e5).toFixed(1)}`;
+  if (flux >= 1e-6) return `C${(flux * 1e6).toFixed(1)}`;
+  if (flux >= 1e-7) return `B${(flux * 1e7).toFixed(1)}`;
+  return `A${(flux * 1e8).toFixed(1)}`;
+}
+
+/** A flux is C-class and above once it clears 10⁻⁶ W/m². */
+function isNotable(flux) {
+  return flux >= 1e-6;
+}
 
 export default function FluxChart({ data, range, onRange }) {
-  const [fullscreen, setFullscreen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(null);
-  const [dimensions, setDimensions] = useState({ w: 700, h: 200 });
-  const [fsDims, setFsDims] = useState({ w: 1200, h: 500 });
 
-  // Normal card responsive sizing
-  const containerRef = useCallback((node) => {
-    if (!node) return;
-    const w = Math.max(400, node.clientWidth - 24);
-    setDimensions({ w, h: Math.round(200 * (w / 700)) });
-  }, []);
-
-  // Fullscreen responsive sizing
-  const fsContainerRef = useCallback((node) => {
-    if (!node) return;
-    const w = Math.max(700, node.clientWidth - 40);
-    setFsDims({ w, h: Math.round(500 * (w / 1200)) });
-  }, []);
-
-  // Escape key + body scroll lock
   useEffect(() => {
-    if (!fullscreen) return;
-    const handler = (e) => { if (e.key === 'Escape') setFullscreen(false); };
-    window.addEventListener('keydown', handler);
+    if (!expanded) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('keydown', handler);
+      window.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [fullscreen]);
-
-  const toggleFs = () => setFullscreen(p => !p);
-  const isFs = fullscreen;
-
-  // Active dimensions based on mode
-  const active = isFs ? fsDims : dimensions;
-  const cw = active.w;
-  const ch = active.h;
-  const pad = isFs
-    ? { t: 32, r: 100, b: 55, l: 100 }
-    : { t: 16, r: 50, b: 30, l: 50 };
+  }, [expanded]);
 
   const filtered = useMemo(() => {
     const now = Date.now();
-    return data.filter(d => d.timestamp >= now - range * 3600 * 1000);
+    return data.filter((d) => d.timestamp >= now - range * 3600 * 1000);
   }, [data, range]);
 
+  // Fixed viewBox rather than a ResizeObserver: the SVG scales to its
+  // container, so there is no layout read and no re-render on resize.
+  const W = expanded ? 1200 : 720;
+  const H = expanded ? 420 : 240;
+  const pad = expanded
+    ? { t: 30, r: 96, b: 46, l: 74 }
+    : { t: 18, r: 52, b: 34, l: 56 };
+
+  const FL_MIN = 1e-9;
+  const FL_MAX = 1e-4;
+
   const scales = useMemo(() => {
-    if (!filtered.length) return null;
-    const t0 = filtered[0].timestamp, t1 = filtered[filtered.length - 1].timestamp;
-    const fMin = 1e-10, fMax = 1e-3;
-    const xScale = t => pad.l + ((t - t0) / Math.max(1, t1 - t0)) * (cw - pad.l - pad.r);
-    const yScale = v => pad.t + ch - pad.t - pad.b - ((Math.log10(Math.max(1e-10, v)) - Math.log10(fMin)) / (Math.log10(fMax) - Math.log10(fMin))) * (ch - pad.t - pad.b);
-    return { x: xScale, y: yScale, t0, t1 };
-  }, [filtered, cw, ch, pad]);
+    if (filtered.length < 2) return null;
+    const t0 = filtered[0].timestamp;
+    const t1 = filtered[filtered.length - 1].timestamp;
+    const x = (t) => pad.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - pad.l - pad.r);
+    const y = (v) =>
+      pad.t +
+      (H - pad.t - pad.b) -
+      ((Math.log10(Math.max(FL_MIN, v)) - Math.log10(FL_MIN)) /
+        (Math.log10(FL_MAX) - Math.log10(FL_MIN))) *
+        (H - pad.t - pad.b);
+    return { x, y, t0, t1 };
+  }, [filtered, W, H, pad]);
 
-  const handleMouseMove = useCallback((e, scalesVal) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const sx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    setHover({ x: pad.l + sx * (cw - pad.l - pad.r), t: scalesVal.t0 + sx * (scalesVal.t1 - scalesVal.t0) });
-  }, [cw, pad]);
+  const handleMove = useCallback(
+    (e) => {
+      if (!scales) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      // Map the pointer back into viewBox coordinates.
+      const vb = frac * W;
+      const t = scales.t0 + ((vb - pad.l) / (W - pad.l - pad.r)) * (scales.t1 - scales.t0);
 
-  const closestPoint = useMemo(() => {
-    if (!hover || !filtered.length || !scales) return null;
-    let closest = filtered[0];
-    let minDiff = Math.abs(filtered[0].timestamp - hover.t);
-    for (const p of filtered) {
-      const diff = Math.abs(p.timestamp - hover.t);
-      if (diff < minDiff) { minDiff = diff; closest = p; }
-    }
-    return closest;
-  }, [hover, filtered, scales]);
+      let closest = filtered[0];
+      let best = Infinity;
+      for (const p of filtered) {
+        const d = Math.abs(p.timestamp - t);
+        if (d < best) {
+          best = d;
+          closest = p;
+        }
+      }
+      setHover(closest);
+    },
+    [scales, filtered, W, pad.l, pad.r]
+  );
 
-  // ── Shared SVG content ──────────────────────────────────────────
-
-  const renderChartSvg = () => {
-    if (!scales || !filtered.length) return null;
-
-    const tiers = [
-      { y: scales.y(1e-8), label: 'A', color: '#484F58' },
-      { y: scales.y(1e-7), label: 'B', color: '#484F58' },
-      { y: scales.y(1e-6), label: 'C', color: '#484F58' },
-      { y: scales.y(1e-5), label: 'M', color: '#D29922' },
-      { y: scales.y(1e-4), label: 'X', color: '#F85149' },
-    ];
-
-    const firstX = scales.x(filtered[0].timestamp);
-    const lastX = scales.x(filtered[filtered.length - 1].timestamp);
-
-    const softLine = filtered.map((d, i) => `${i === 0 ? 'M' : 'L'}${scales.x(d.timestamp)},${scales.y(d.softFlux)}`).join(' ');
-    const hardLine = filtered.map((d, i) => `${i === 0 ? 'M' : 'L'}${scales.x(d.timestamp)},${scales.y(d.hardFlux)}`).join(' ');
-    const softArea = `${softLine} L${lastX},${ch - pad.b} L${firstX},${ch - pad.b} Z`;
-    const hardArea = `${hardLine} L${lastX},${ch - pad.b} L${firstX},${ch - pad.b} Z`;
-
-    const nTicks = isFs ? 10 : (cw < 500 ? 4 : 6);
-    const xtickVals = Array.from({ length: nTicks + 1 }, (_, i) => {
-      const t = scales.t0 + (i / nTicks) * (scales.t1 - scales.t0);
-      return {
-        x: scales.x(t),
-        label: new Date(t).toISOString().slice(11, 16) +
-          (isFs ? `:${String(new Date(t).getUTCSeconds()).padStart(2, '0')}` : '')
-      };
-    });
-
-    const yLabels = [1e-8, 1e-7, 1e-6, 1e-5, 1e-4];
-    const yLabelTexts = ['10⁻⁸', '10⁻⁷', '10⁻⁶', '10⁻⁵', '10⁻⁴'];
-
-    const getGoesClass = (flux) => {
-      if (flux >= 1e-4) return `X${(flux * 1e4).toFixed(1)}`;
-      if (flux >= 1e-5) return `M${(flux * 1e5).toFixed(1)}`;
-      if (flux >= 1e-6) return `C${(flux * 1e6).toFixed(1)}`;
-      if (flux >= 1e-7) return `B${(flux * 1e7).toFixed(1)}`;
-      return `A${(flux * 1e8).toFixed(1)}`;
-    };
-
+  if (!scales) {
+    // Absence stated in words, never as an empty chart or a zero.
     return (
-      <svg viewBox={`0 0 ${cw} ${ch}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <linearGradient id={`softGrad${isFs ? 'Fs' : ''}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#E67E22" stopOpacity={isFs ? 0.25 : 0.2} />
-            <stop offset="100%" stopColor="#E67E22" stopOpacity={0.01} />
-          </linearGradient>
-          <linearGradient id={`hardGrad${isFs ? 'Fs' : ''}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3498DB" stopOpacity={isFs ? 0.2 : 0.15} />
-            <stop offset="100%" stopColor="#3498DB" stopOpacity={0.01} />
-          </linearGradient>
-          <filter id={`softGlow${isFs ? 'Fs' : ''}`}>
-            <feDropShadow dx="0" dy="1" stdDeviation={isFs ? 3 : 2} floodColor="#E67E22" floodOpacity={isFs ? 0.5 : 0.4} />
-          </filter>
-          <filter id={`hardGlow${isFs ? 'Fs' : ''}`}>
-            <feDropShadow dx="0" dy="1" stdDeviation={isFs ? 2.5 : 1.5} floodColor="#3498DB" floodOpacity={isFs ? 0.4 : 0.3} />
-          </filter>
-        </defs>
+      <div className="absent">
+        <p>No samples in this window.</p>
+        <p>
+          {data.length === 0
+            ? 'The pipeline has not written a sample yet. Start it with uvicorn api.main:app.'
+            : 'Widen the range or wait for the next one-minute sample.'}
+        </p>
+      </div>
+    );
+  }
 
-        {/* Hazard zone backdrops */}
-        {(() => {
-          const mY = scales.y(1e-5);
-          const xY = scales.y(1e-4);
+  const softLine = filtered
+    .map((d, i) => `${i === 0 ? 'M' : 'L'}${scales.x(d.timestamp)},${scales.y(d.softFlux)}`)
+    .join(' ');
+  const hardLine = filtered
+    .map((d, i) => `${i === 0 ? 'M' : 'L'}${scales.x(d.timestamp)},${scales.y(d.hardFlux)}`)
+    .join(' ');
+
+  const firstX = scales.x(filtered[0].timestamp);
+  const lastX = scales.x(filtered[filtered.length - 1].timestamp);
+  const baseY = H - pad.b;
+  const softArea = `${softLine} L${lastX},${baseY} L${firstX},${baseY} Z`;
+  const hardArea = `${hardLine} L${lastX},${baseY} L${firstX},${baseY} Z`;
+
+  const nTicks = expanded ? 10 : W < 520 ? 4 : 6;
+  const xticks = Array.from({ length: nTicks + 1 }, (_, i) => {
+    const t = scales.t0 + (i / nTicks) * (scales.t1 - scales.t0);
+    const d = new Date(t);
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return {
+      x: scales.x(t),
+      label: expanded ? `${hh}:${mm}:${String(d.getUTCSeconds()).padStart(2, '0')}` : `${hh}:${mm}`,
+    };
+  });
+
+  const chart = (
+    <div className="chartframe" style={{ height: expanded ? '100%' : H }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHover(null)}
+        role="img"
+        aria-label={`Soft and hard X-ray flux over the last ${range} hours. ${filtered.length} samples.`}
+      >
+        {/* The hazard bands, so a glance at where the traces sit says what
+            class they are in without reading the axis. */}
+        <rect
+          x={pad.l}
+          y={0}
+          width={W - pad.l - pad.r}
+          height={scales.y(1e-4)}
+          fill="var(--tint-refused)"
+        />
+        <rect
+          x={pad.l}
+          y={scales.y(1e-4)}
+          width={W - pad.l - pad.r}
+          height={scales.y(1e-5) - scales.y(1e-4)}
+          fill="var(--tint-near)"
+        />
+
+        {/* Tier rules. M and X are drawn firmly because they are the two
+            thresholds that change what an operator does. */}
+        {TIERS.map((t) => {
+          const firm = t.label === 'M' || t.label === 'X';
           return (
-            <>
-              <rect x={pad.l} y={xY} width={cw - pad.l - pad.r} height={mY - xY} fill="rgba(210,153,34,0.025)" rx="2" />
-              <rect x={pad.l} y={0} width={cw - pad.l - pad.r} height={xY} fill="rgba(248,81,73,0.03)" rx="2" />
-            </>
+            <g key={t.label}>
+              <line
+                x1={pad.l}
+                y1={scales.y(t.flux)}
+                x2={W - pad.r}
+                y2={scales.y(t.flux)}
+                stroke={TONE_VAR[t.tone]}
+                strokeWidth={firm ? 1.5 : 1}
+                strokeDasharray={firm ? 'none' : '3,4'}
+                opacity={firm ? 0.55 : 0.24}
+              />
+              <text
+                x={pad.l - 8}
+                y={scales.y(t.flux) + 4}
+                textAnchor="end"
+                fill={firm ? 'var(--near-ink)' : 'var(--muted)'}
+                fontSize="14"
+                fontWeight={firm ? 700 : 400}
+                fontFamily="var(--mono)"
+              >
+                {t.label}
+              </text>
+            </g>
           );
-        })()}
+        })}
 
-        {/* Horizontal grid */}
-        {yLabels.map((val, i) => (
-          <line key={`h-${i}`} x1={pad.l} y1={scales.y(val)} x2={cw - pad.r} y2={scales.y(val)}
-            stroke="rgba(255,255,255,0.06)" strokeWidth={isFs ? 0.7 : 0.5} strokeDasharray="3,4" />
+        {/* Y axis: log decades, labelled in the notation the flux is
+            quoted in everywhere else in the console. */}
+        {TIERS.map((t) => (
+          <text
+            key={`yl-${t.label}`}
+            x={pad.l - 26}
+            y={scales.y(t.flux) + 4}
+            textAnchor="end"
+            className="ticklabel"
+          >
+            {SUPER[String(t.flux)]}
+          </text>
         ))}
 
-        {/* Threshold labels */}
-        {tiers.map(t => (
-          <g key={t.label}>
-            <line x1={pad.l} y1={t.y} x2={cw - pad.r} y2={t.y}
-              stroke={t.color} strokeWidth={t.label === 'M' || t.label === 'X' ? (isFs ? 1 : 0.7) : 0.3}
-              opacity={t.label === 'M' || t.label === 'X' ? 0.5 : 0.15}
-              strokeDasharray={t.label === 'M' || t.label === 'X' ? 'none' : '2,4'}
+        {/* Gridlines and axes. */}
+        {TIERS.map((t) => (
+          <line
+            key={`h-${t.label}`}
+            x1={pad.l}
+            y1={scales.y(t.flux)}
+            x2={W - pad.r}
+            y2={scales.y(t.flux)}
+            className="gridline"
+            strokeDasharray="2,4"
+            opacity="0.6"
+          />
+        ))}
+        <line x1={pad.l} y1={pad.t} x2={pad.l} y2={baseY} className="axisline" />
+        <line x1={pad.l} y1={baseY} x2={W - pad.r} y2={baseY} className="axisline" />
+
+        {xticks.map((t, i) => (
+          <g key={i}>
+            <line
+              x1={t.x}
+              y1={pad.t}
+              x2={t.x}
+              y2={baseY}
+              className="gridline"
+              strokeDasharray="2,4"
+              opacity="0.5"
             />
-            <text x={pad.l - 6} y={t.y + (isFs ? 5 : 3)} textAnchor="end" fill={t.color}
-              fontSize={isFs ? 12 : 8} fontWeight="bold" fontFamily="monospace" opacity={t.label === 'M' || t.label === 'X' ? 0.8 : 0.3}>
+            <text x={t.x} y={baseY + 20} textAnchor="middle" className="ticklabel">
               {t.label}
             </text>
           </g>
         ))}
 
-        {/* Y-axis labels */}
-        {yLabels.map((val, i) => (
-          <text key={`yl-${i}`} x={pad.l - (isFs ? 10 : 8)} y={scales.y(val) + (isFs ? 4 : 3)}
-            textAnchor="end" fill="#566176" fontSize={isFs ? 11 : 7} fontFamily="monospace">
-            {yLabelTexts[i]}
-          </text>
-        ))}
+        {/* The traces. Unlit marks — a colour a light bounces off is a
+            colour the lighting can change. */}
+        <path d={softArea} className="trace-fill-soft" />
+        <path d={hardArea} className="trace-fill-hard" />
+        <path d={hardLine} className="trace-hard" />
+        <path d={softLine} className="trace-soft" />
 
-        {/* Vertical grid */}
-        {xtickVals.map((t, i) => (
-          <line key={`v-${i}`} x1={t.x} y1={pad.t} x2={t.x} y2={ch - pad.b}
-            stroke="rgba(255,255,255,0.04)" strokeWidth={isFs ? 0.6 : 0.5} strokeDasharray="3,4" />
-        ))}
-
-        {/* Axes */}
-        <line x1={pad.l} y1={pad.t} x2={pad.l} y2={ch - pad.b} stroke="rgba(255,255,255,0.1)" strokeWidth={isFs ? 1.2 : 1} />
-        <line x1={pad.l} y1={ch - pad.b} x2={cw - pad.r} y2={ch - pad.b} stroke="rgba(255,255,255,0.1)" strokeWidth={isFs ? 1.2 : 1} />
-
-        {/* X tick labels */}
-        {xtickVals.map((t, i) => (
-          <text key={i} x={t.x} y={ch - pad.b + (isFs ? 20 : 14)}
-            textAnchor="middle" fill="#566176" fontSize={isFs ? 10 : 7} fontFamily="monospace">
-            {t.label}
-          </text>
-        ))}
-
-        {/* Data */}
-        <path d={softArea} fill={`url(#softGrad${isFs ? 'Fs' : ''})`} />
-        <path d={hardArea} fill={`url(#hardGrad${isFs ? 'Fs' : ''})`} />
-        <path d={softLine} fill="none" stroke="#E67E22" strokeWidth={isFs ? 2.5 : 1.5}
-          filter={`url(#softGlow${isFs ? 'Fs' : ''})`} />
-        <path d={hardLine} fill="none" stroke="#3498DB" strokeWidth={isFs ? 2 : 1.0}
-          filter={`url(#hardGlow${isFs ? 'Fs' : ''})`} />
-
-        {/* Hover */}
-        {closestPoint && (
+        {/* Hover marker. */}
+        {hover && (
           <g>
-            <line x1={scales.x(closestPoint.timestamp)} y1={pad.t} x2={scales.x(closestPoint.timestamp)} y2={ch - pad.b}
-              stroke="rgba(255,255,255,0.2)" strokeWidth={isFs ? 1 : 0.5} strokeDasharray="2,3" />
-            <circle cx={scales.x(closestPoint.timestamp)} cy={scales.y(closestPoint.softFlux)}
-              r={isFs ? 6 : 4} fill="#E67E22" stroke="#fff" strokeWidth={isFs ? 2.5 : 1.5}>
-              <animate attributeName="r" values={isFs ? "5;8;5" : "3;5;3"} dur="2s" repeatCount="indefinite" />
-            </circle>
-            <circle cx={scales.x(closestPoint.timestamp)} cy={scales.y(closestPoint.hardFlux)}
-              r={isFs ? 5.5 : 3.5} fill="#3498DB" stroke="#fff" strokeWidth={isFs ? 2.5 : 1.5} />
+            <line
+              x1={scales.x(hover.timestamp)}
+              y1={pad.t}
+              x2={scales.x(hover.timestamp)}
+              y2={baseY}
+              stroke="var(--muted)"
+              strokeWidth="1"
+              strokeDasharray="2,3"
+            />
+            {isNotable(hover.softFlux) && (
+              <circle
+                cx={scales.x(hover.timestamp)}
+                cy={scales.y(hover.softFlux)}
+                r="5"
+                fill="var(--near)"
+                stroke="var(--vellum)"
+                strokeWidth="1.5"
+              />
+            )}
+            <circle
+              cx={scales.x(hover.timestamp)}
+              cy={scales.y(hover.hardFlux)}
+              r="4"
+              fill="var(--far)"
+              stroke="var(--vellum)"
+              strokeWidth="1.5"
+            />
           </g>
         )}
-
-        {/* Interactive overlay */}
-        <rect
-          x={pad.l} y={pad.t} width={cw - pad.l - pad.r} height={ch - pad.t - pad.b}
-          fill="transparent"
-          onMouseMove={e => handleMouseMove(e, scales)}
-          onMouseLeave={() => setHover(null)}
-        />
       </svg>
-    );
-  };
+    </div>
+  );
 
-  // ── Tooltip ──────────────────────────────────────────────────
-
-  const renderTooltip = () => {
-    if (!closestPoint || !scales) return null;
-    const fs = isFs;
-
-    const getGoesClass = (flux) => {
-      if (flux >= 1e-4) return `X${(flux * 1e4).toFixed(1)}`;
-      if (flux >= 1e-5) return `M${(flux * 1e5).toFixed(1)}`;
-      if (flux >= 1e-6) return `C${(flux * 1e6).toFixed(1)}`;
-      if (flux >= 1e-7) return `B${(flux * 1e7).toFixed(1)}`;
-      return `A${(flux * 1e8).toFixed(1)}`;
-    };
-
-    return (
+  const tooltip = hover && (
+    <div
+      style={{
+        position: 'absolute',
+        top: expanded ? 24 : 8,
+        left: expanded ? 24 : 8,
+        background: 'var(--vellum)',
+        border: '1.5px solid var(--graphite)',
+        padding: expanded ? '1rem 1.25rem' : '0.6rem 0.75rem',
+        fontFamily: 'var(--mono)',
+        fontSize: 'var(--ui-sm)',
+        pointerEvents: 'none',
+        minWidth: expanded ? '18rem' : undefined,
+      }}
+    >
       <div
-        className={`font-mono select-none ${
-          fs
-            ? 'absolute bottom-6 left-6 bg-[#0D1117]/95 backdrop-blur-xl border border-[rgba(255,255,255,0.1)] px-5 py-4 rounded-xl shadow-2xl text-sm space-y-2 min-w-[260px]'
-            : 'absolute top-2 left-2 sm:top-3 sm:left-4 bg-[#0D1117]/90 backdrop-blur-md border border-[rgba(255,255,255,0.08)] px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-2xl text-[9px] sm:text-[10px] space-y-1 max-w-[200px] sm:max-w-none'
-        }`}
-        style={{ zIndex: 30 }}
+        style={{
+          fontWeight: 700,
+          borderBottom: '1.5px solid var(--rule)',
+          paddingBottom: '0.4rem',
+          marginBottom: '0.4rem',
+        }}
       >
-        {/* Timestamp */}
-        <div className={`${fs ? 'text-base' : 'text-[10px] sm:text-xs'} text-white border-b border-[rgba(255,255,255,0.06)] pb-1.5 mb-1.5 font-bold text-center`}>
-          {formatUTC(closestPoint.timestamp)}
-        </div>
-
-        {/* Soft X-Ray */}
-        <div className={`flex justify-between items-center ${fs ? 'gap-8' : 'gap-3 sm:gap-6'}`}>
-          <span className={fs ? 'text-[#566176] text-xs' : 'text-[#566176]'}>SOFT X-RAY:</span>
-          <span className={`text-[#E67E22] font-bold ${fs ? 'text-sm' : ''}`}>
-            {closestPoint.softFlux.toExponential(fs ? 2 : 1)}
-            <span className="text-[#566176] ml-1">({getGoesClass(closestPoint.softFlux)})</span>
-          </span>
-        </div>
-
-        {/* Hard X-Ray */}
-        <div className={`flex justify-between items-center ${fs ? 'gap-8' : 'gap-3 sm:gap-6'}`}>
-          <span className={fs ? 'text-[#566176] text-xs' : 'text-[#566176]'}>HARD X-RAY:</span>
-          <span className={`text-[#3498DB] font-bold ${fs ? 'text-sm' : ''}`}>
-            {closestPoint.hardFlux.toExponential(fs ? 2 : 1)}
-          </span>
-        </div>
-
-        {/* Hardness Ratio */}
-        <div className={`flex justify-between items-center border-t border-[rgba(255,255,255,0.06)] ${fs ? 'pt-2 mt-2' : 'pt-1 mt-1'}`}>
-          <span className={fs ? 'text-[#566176] text-xs' : 'text-[#566176]'}>HARDNESS:</span>
-          <span className={`text-green-400 font-bold ${fs ? 'text-sm' : ''}`}>
-            {closestPoint.hardnessRatio.toFixed(fs ? 4 : 3)}
-          </span>
-        </div>
-
-        {/* Extra details in fullscreen */}
-        {fs && (
-          <>
-            <div className="flex justify-between items-center pt-1">
-              <span className="text-[#566176] text-xs">FLUX RATIO:</span>
-              <span className="text-[#8B949E] text-xs font-mono">
-                {((closestPoint.hardFlux || 0) / Math.max(closestPoint.softFlux, 1e-12)).toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-[#566176] text-xs">GOES CLASS:</span>
-              <span className="text-[#E6EDF3] font-bold text-sm">
-                {getGoesClass(closestPoint.softFlux)}
-              </span>
-            </div>
-          </>
-        )}
+        {formatUTC(hover.timestamp)}
       </div>
-    );
-  };
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem' }}>
+        <span style={{ color: 'var(--muted)' }}>SOFT</span>
+        <span style={{ color: 'var(--near-ink)', fontWeight: 700 }}>
+          {hover.softFlux.toExponential(expanded ? 2 : 1)}
+        </span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem' }}>
+        <span style={{ color: 'var(--muted)' }}>HARD</span>
+        <span style={{ color: 'var(--far)', fontWeight: 700 }}>
+          {hover.hardFlux.toExponential(expanded ? 2 : 1)}
+        </span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem' }}>
+        <span style={{ color: 'var(--muted)' }}>HARDNESS</span>
+        <span style={{ fontWeight: 700 }}>{hover.hardnessRatio.toFixed(4)}</span>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem' }}>
+        <span style={{ color: 'var(--muted)' }}>CLASS</span>
+        <span style={{ fontWeight: 700 }}>{goesClass(hover.softFlux)}</span>
+      </div>
+      {expanded && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem' }}>
+          <span style={{ color: 'var(--muted)' }}>FLUX RATIO</span>
+          <span style={{ fontWeight: 700 }}>
+            {(hover.hardFlux / Math.max(hover.softFlux, 1e-12)).toFixed(3)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
 
-  // ── Loading state ──────────────────────────────────────────────
-  if (!scales || !filtered.length) {
-    return (
-      <div 
-        className="h-full flex flex-col justify-center items-center p-6 text-center select-none"
-        style={{ overflow: 'hidden', position: 'relative' }}
+  const rangeControl = (
+    <div className="seg" role="group" aria-label="Time range">
+      {[1, 3, 6, 12, ...(expanded ? [24] : [])].map((h) => (
+        <button key={h} aria-pressed={range === h} onClick={() => onRange(h)}>
+          {h}H
+        </button>
+      ))}
+    </div>
+  );
+
+  /* ------------------------------------------------------------------ expanded */
+  if (expanded) {
+    return createPortal(
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          background: 'var(--vellum)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="X-ray flux, expanded"
       >
-        <div className="w-10 h-10 rounded-full border-2 border-[#30363D] border-t-[#E67E22] animate-spin mb-3" />
-        <span className="text-[#8B949E] text-xs font-mono tracking-wider uppercase">Telemetry Initializing</span>
-        <span className="text-[#566176] text-[10px] font-mono mt-1">Waiting for data stream...</span>
-      </div>
+        <div
+          className="sheet"
+          style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '1rem var(--gutter)' }}
+        >
+          <div className="panel__head">
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+              <h2 style={{ margin: 0, fontSize: 'var(--brand-sub)', fontFamily: 'var(--display)' }}>
+                X-ray flux, expanded
+              </h2>
+              <span className="readout__k">Aditya-L1 · one-minute cadence</span>
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              {rangeControl}
+              <button className="btn btn--ghost" onClick={() => setExpanded(false)}>
+                Close · Esc
+              </button>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            {chart}
+            {tooltip}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '1rem',
+              justifyContent: 'space-between',
+              paddingTop: '0.75rem',
+              borderTop: '1.5px solid var(--rule)',
+              fontSize: 'var(--ui-sm)',
+              color: 'var(--muted)',
+              fontFamily: 'var(--mono)',
+            }}
+          >
+            <span>Hover for per-sample values. Esc closes.</span>
+            <span>
+              {filtered.length.toLocaleString()} samples · {range}H window
+            </span>
+          </div>
+        </div>
+      </div>,
+      document.body
     );
   }
 
-  // ── Fullscreen overlay (rendered via portal) ──────────────────
-
-  const fullscreenOverlay = isFs ? createPortal(
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0D1117]/90 backdrop-blur-xl"
-      style={{ animation: 'fadeIn 0.2s ease-out' }}
-      onClick={() => setFullscreen(false)}
-    >
-      <div
-        className="w-[94vw] h-[90vh] glass-heavy rounded-2xl flex flex-col overflow-hidden shadow-2xl"
-        style={{ boxShadow: '0 25px 80px rgba(0,0,0,0.6), 0 0 40px rgba(230,126,34,0.05)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* FS Header */}
-        <div className="px-5 sm:px-8 py-4 border-b border-white/10 flex items-center justify-between bg-black/20 select-none shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-1.5 h-6 rounded-full bg-gradient-to-b from-[#FFFFFF] to-[#3498DB]" />
-            <h2 className="text-sm sm:text-base uppercase font-mono tracking-wider font-bold text-[#E6EDF3]">
-              X-Ray Flux — Expanded View
-            </h2>
-            <span className="text-[9px] sm:text-[11px] text-[#484F58] font-mono">Aditya-L1 · Real-time</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Range selector */}
-            <div className="flex bg-[#0D1117]/60 backdrop-blur-sm p-0.5 border border-[rgba(255,255,255,0.06)] rounded-md">
-              {[1, 3, 6, 12, 24].map(h => (
-                <button
-                  key={h}
-                  className={`text-[9px] sm:text-[11px] font-mono px-2 sm:px-3 py-1 rounded cursor-pointer transition-all duration-200 ${
-                    range === h
-                      ? 'bg-white text-black font-bold shadow-sm'
-                      : 'text-[#8B949E] hover:text-white hover:bg-[#21262D]/50'
-                  }`}
-                  onClick={() => onRange(h)}
-                >
-                  {h}H
-                </button>
-              ))}
-            </div>
-
-            {/* Close button */}
-            <button
-              onClick={() => setFullscreen(false)}
-              className="text-[#8B949E] hover:text-white transition-colors duration-200 p-1.5 rounded-lg hover:bg-[#21262D]/50 cursor-pointer"
-              title="Close fullscreen (Esc)"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="4 14 10 14 10 20" />
-                <polyline points="20 10 14 10 14 4" />
-                <line x1="14" y1="10" x2="21" y2="3" />
-                <line x1="3" y1="21" x2="10" y2="14" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* FS SVG Canvas */}
-        <div ref={fsContainerRef} className="p-3 sm:p-6 flex-1 overflow-hidden relative">
-          {renderChartSvg()}
-          {renderTooltip()}
-        </div>
-
-        {/* FS Footer hint */}
-        <div className="px-5 sm:px-8 py-2 border-t border-white/10 flex items-center justify-between bg-black/10 shrink-0">
-          <span className="text-[8px] sm:text-[10px] font-mono text-[#484F58]">
-            Hover over chart for detailed values · Press <kbd className="px-1.5 py-0.5 bg-[#21262D] border border-[rgba(255,255,255,0.08)] rounded text-[7px] sm:text-[9px]">Esc</kbd> to close
-          </span>
-          <span className="text-[8px] sm:text-[10px] font-mono text-[#484F58]">
-            {filtered.length.toLocaleString()} data points · {range}H window
-          </span>
-        </div>
-      </div>
-    </div>,
-    document.body
-  ) : null;
-
-
-  // ── Normal card view ────────────────────────────────────────────
-
+  /* ------------------------------------------------------------------ inline */
   return (
     <>
-      {fullscreenOverlay}
-      <div
-        className="h-full flex flex-col overflow-hidden relative"
-      >
-        {/* Header */}
-        <div className="dash-card-header">
-          <div className="dash-card-header-left">
-            <div className="dash-card-bar" style={{ background: 'linear-gradient(180deg, #FFFFFF, #3498DB)' }} />
-            <span className="dash-card-title">X-Ray Flux</span>
-            <span className="dash-card-sub">Aditya-L1 · 1-min cadence</span>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-            {/* Legend */}
-            <div className="flex items-center gap-2 sm:gap-3 text-[8px] sm:text-[9px] font-mono">
-              <div className="flex items-center gap-1">
-                <span className="w-2.5 h-[2px] bg-[#E67E22] inline-block rounded-full" style={{ boxShadow: '0 0 4px rgba(230,126,34,0.5)' }} />
-                <span className="text-[#8B949E] hidden xs:inline">SOFT</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2.5 h-[2px] bg-[#3498DB] inline-block rounded-full" style={{ boxShadow: '0 0 4px rgba(52,152,219,0.5)' }} />
-                <span className="text-[#8B949E] hidden xs:inline">HARD</span>
-              </div>
-            </div>
-
-            {/* Range selector */}
-            <div className="flex bg-[#0D1117]/60 backdrop-blur-sm p-0.5 border border-[rgba(255,255,255,0.06)] rounded-md">
-              {[1, 3, 6, 12].map(h => (
-                <button
-                  key={h}
-                  className={`text-[8px] sm:text-[9px] font-mono px-1.5 sm:px-2.5 py-0.5 rounded cursor-pointer transition-all duration-200 ${
-                    range === h
-                      ? 'bg-white text-black font-bold shadow-sm'
-                      : 'text-[#8B949E] hover:text-white hover:bg-[#21262D]/50'
-                  }`}
-                  onClick={() => onRange(h)}
-                >
-                  {h}H
-                </button>
-              ))}
-            </div>
-
-            {/* Fullscreen toggle */}
-            <button
-              onClick={toggleFs}
-              className="text-[#8B949E] hover:text-white transition-colors duration-200 p-1 rounded-md hover:bg-[#21262D]/50 cursor-pointer"
-              title="Expand fullscreen"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 3 21 3 21 9" />
-                <polyline points="9 21 3 21 3 15" />
-                <line x1="21" y1="3" x2="14" y2="10" />
-                <line x1="3" y1="21" x2="10" y2="14" />
-              </svg>
-            </button>
-          </div>
+      <div className="panel__head">
+        <div>
+          <h2>X-ray flux</h2>
+          <span className="readout__k">SoLEXS soft · HEL1OS hard</span>
         </div>
-
-        {/* SVG Canvas */}
-        <div ref={containerRef} className="dash-card-body flex-1 overflow-hidden relative">
-          {renderChartSvg()}
-          {renderTooltip()}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="legend">
+            <span>
+              <i className="near" />
+              soft
+            </span>
+            <span>
+              <i className="far" />
+              hard
+            </span>
+          </div>
+          {rangeControl}
+          <button
+            className="iconbtn"
+            onClick={() => setExpanded(true)}
+            aria-label="Expand to full screen"
+            title="Expand"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <polyline points="15 3 21 3 21 9" />
+              <polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" />
+              <line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          </button>
         </div>
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        {chart}
+        {tooltip}
       </div>
     </>
   );
 }
-

@@ -1,59 +1,61 @@
-const LEVEL_STYLES = { 
-  RED: { border: 'border-l-[3px] border-red-400', text: 'text-red-400', bg: 'bg-red-500/5', dot: 'bg-red-400', glow: 'rgba(248,113,113,0.15)' }, 
-  YELLOW: { border: 'border-l-[3px] border-yellow-400', text: 'text-yellow-400', bg: 'bg-yellow-500/5', dot: 'bg-yellow-400', glow: 'rgba(251,191,36,0.15)' }, 
-  GREEN: { border: 'border-l-[3px] border-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-500/5', dot: 'bg-emerald-400', glow: 'rgba(52,211,153,0.15)' } 
+/* Alert levels map onto the Measured Colour ramp by severity, and each
+   level also carries a distinct word, so colour is never the sole signal. */
+const LEVELS = {
+  RED: { tone: 'refused', label: 'refused', word: 'alert' },
+  YELLOW: { tone: 'near', label: 'elevated', word: 'watch' },
+  GREEN: { tone: 'mid', label: 'nominal', word: 'log' },
 };
-const TYPE_ABBR = { NOWCAST: 'NOWCAST', FORECAST: 'FORECAST', INFO: 'SYS_INFO' };
+
+const TYPE_LABEL = {
+  NOWCAST: 'nowcast',
+  FORECAST: 'forecast',
+  INFO: 'system',
+};
 
 export default function AlertList({ alerts }) {
-  const displayAlerts = alerts.slice(0, 20);
-  
+  const shown = (alerts || []).slice(0, 24);
+
   return (
-    <div className="h-full flex flex-col" style={{ overflow: 'hidden' }}>
-      <div className="dash-card-header">
-        <div className="dash-card-header-left">
-          <div className="dash-card-bar" style={{ background: 'linear-gradient(180deg, #F87171, #FBBF24)' }} />
-          <span className="dash-card-title">Alert Log</span>
+    <>
+      <div className="panel__head">
+        <div>
+          <h2>Alert log</h2>
+          <span className="readout__k">pipeline emissions, newest first</span>
         </div>
-        <span className="dash-card-sub uppercase">
-          {alerts.length > 0 ? `${alerts.length} alerts` : 'Live Feed'}
+        <span className="readout__k">
+          {shown.length > 0 ? `${shown.length} shown` : 'live feed'}
         </span>
       </div>
-      
-      <div className="dash-card-body flex-1 overflow-y-auto space-y-2 font-mono text-[10px]">
-        {displayAlerts.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-white/30 gap-2 py-8">
-            <div className="w-10 h-10 rounded-full border-2 border-white/10 flex items-center justify-center text-sm text-emerald-400">✓</div>
-            <span className="text-[10px] uppercase font-mono tracking-wider">No active alerts</span>
-            <span className="text-[8px] text-center max-w-[180px] text-white/20">All systems nominal — no anomalous solar activity detected</span>
-          </div>
-        ) : (
-          displayAlerts.map((a, i) => {
-            const s = LEVEL_STYLES[a.level] || LEVEL_STYLES.GREEN;
+
+      {shown.length === 0 ? (
+        // Absence in words. An empty chart here would imply "nothing
+        // happened", which is a different claim from "nothing logged".
+        <div className="absent">
+          <p>No alerts logged.</p>
+          <p>
+            Nothing has crossed a threshold this session. An alert appears when the nowcast
+            class escalates or the hardness ratio passes 0.06.
+          </p>
+        </div>
+      ) : (
+        <ul className="alerts scroll-quiet">
+          {shown.map((a, i) => {
+            const lv = LEVELS[a.level] || LEVELS.GREEN;
             return (
-              <div 
-                key={i} 
-                className={`p-3 rounded-xl ${s.border} ${s.bg} border-t border-r border-b border-white/[0.04] transition-all duration-200 hover:bg-white/[0.02]`}
-              >
-                <div className="flex items-center justify-between mb-1 text-[9px] font-bold">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} style={{ boxShadow: `0 0 6px ${s.glow}` }} />
-                    <span className={`${s.text} uppercase tracking-wider`}>
-                      [{TYPE_ABBR[a.type] || a.type}]
-                    </span>
-                  </div>
-                  <span className="text-white/20 font-normal">
-                    {a.ts ? a.ts.slice(11, 19) : ''} UTC
+              <li key={i}>
+                <div className="alerts__head">
+                  <span className={`alerts__type is-${lv.tone}`}>
+                    <span className={`beacon beacon--sm beacon--${lv.tone}`} aria-hidden="true" />
+                    {lv.word} · {TYPE_LABEL[a.type] || String(a.type || '').toLowerCase()}
                   </span>
+                  <span className="alerts__ts">{a.ts ? `${a.ts.slice(11, 19)}Z` : ''}</span>
                 </div>
-                <div className="text-white/50 text-[9px] leading-relaxed break-words pl-3">
-                  {a.msg}
-                </div>
-              </div>
+                <p className="alerts__msg">{a.msg}</p>
+              </li>
             );
-          })
-        )}
-      </div>
-    </div>
+          })}
+        </ul>
+      )}
+    </>
   );
 }

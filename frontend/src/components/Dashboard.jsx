@@ -1,71 +1,134 @@
 import { useState } from 'react';
-import FluxChart from './FluxChart';
-import StatusBlock from './StatusBlock';
-import AlertList from './AlertList';
-import HardnessMeter from './HardnessMeter';
-import DataSourcePanel from './DataSourcePanel';
-import { ImpactStrip } from './ImpactPanel';
-import { useLiveState, fmtFlux } from '../lib/data';
+import FluxChart from './FluxChart.jsx';
+import StatusBlock from './StatusBlock.jsx';
+import AlertList from './AlertList.jsx';
+import HardnessMeter from './HardnessMeter.jsx';
+import DataSourcePanel from './DataSourcePanel.jsx';
+import { ImpactStrip } from './ImpactPanel.jsx';
+import { useLiveState, fmtFlux } from '../lib/data.js';
+import { useReveal } from '../useReveal.js';
 
-function HeroCard({ tag, value, sub, color, badge, delay }) {
-  return (
-    <div className="dash-hero-card" style={{ animationDelay: `${delay}s` }}>
-      <span className="dash-hero-tag">{tag}</span>
-      <div className="dash-hero-value" style={color ? { color } : {}}>
-        {value}
-        {badge && <span className="dash-hero-badge">{badge}</span>}
-      </div>
-      {sub && <span className="dash-hero-sub">{sub}</span>}
-    </div>
-  );
+/* Measured Colour: one mapping, used by every readout on this sheet.
+   Orange is happening now, teal is identified, indigo is settled,
+   red is refused. */
+function flareState(nowcast, hardnessRatio) {
+  const phase = nowcast.currentPhase || 'Quiet Sun';
+  if (nowcast.class !== '—' || /Onset|Peak|Decay/.test(phase)) {
+    return { tone: 'near', word: 'flare in progress' };
+  }
+  if (hardnessRatio.preFlareSignal || /Warning|Elevated/.test(phase)) {
+    return { tone: 'near', word: 'pre-flare warning' };
+  }
+  return { tone: 'mid', word: 'quiet sun' };
 }
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard() {
   const [range, setRange] = useState(6);
   const { fluxData, alerts, hardnessRatio, nowcast, forecast, systemStatus } = useLiveState();
+  const ref = useReveal();
 
-  const isFlare = nowcast.class !== '—' || nowcast.currentPhase?.includes('Onset') || nowcast.currentPhase?.includes('Peak');
-  const stateColor = isFlare ? '#F87171' : hardnessRatio.preFlareSignal ? '#FBBF24' : systemStatus.stateColor || '#34D399';
+  const state = flareState(nowcast, hardnessRatio);
+  const pipelineOnline = systemStatus.pipeline === 'Operational';
 
   return (
-    <div className="premium-dash">
-      {/* ===== HERO STATS BAR ===== */}
-      <div className="dash-hero">
-        <HeroCard tag="Solar State" value={systemStatus.stateLabel} color={stateColor} delay={0.02} />
-        <HeroCard tag="Nowcast" value={nowcast.class} sub={`Z-Score: ${nowcast.zScore.toFixed(1)}σ`} color={isFlare ? '#F87171' : '#34D399'} delay={0.06} />
-        <HeroCard tag="Forecast (3h)" value={`${forecast.probability}%`} sub={forecast.nextClass} delay={0.10} />
-        <HeroCard tag="Peak Flux" value={fmtFlux(nowcast.peakFlux)} sub="W/m²" delay={0.14} />
-        <HeroCard tag="Hardness Ratio" value={hardnessRatio.current.toFixed(4)} badge={hardnessRatio.preFlareSignal ? `⚠ +${hardnessRatio.minutesEarly}m` : undefined} color={hardnessRatio.preFlareSignal ? '#FBBF24' : ''} delay={0.18} />
-        <HeroCard tag="Lead Time" value={`+${forecast.leadTime || 0} min`} sub="vs GOES onset" delay={0.22} />
+    <div className="console" ref={ref}>
+      {/* The One Kicker for this route, once. */}
+      <div className="console__head">
+        <div>
+          <span className="eyebrow">Sheet 01 · live nowcast</span>
+          <h1 className="title">Nowcast console</h1>
+        </div>
+        <div className="console__status">
+          <span className={`stateword is-${pipelineOnline ? 'mid' : 'refused'}`}>
+            {pipelineOnline ? 'pipeline online' : systemStatus.pipeline?.toLowerCase() || 'offline'}
+          </span>
+          <span className="muted">{systemStatus.modelVersion}</span>
+        </div>
       </div>
 
-      {/* ===== IMPACT SUMMARY STRIP ===== */}
-      <ImpactStrip onNavigate={onNavigate} />
+      {/* ------------------------------------------------------------ readouts */}
+      <div className="readouts" data-reveal style={{ marginBottom: '2.5rem' }}>
+        <div className="readout">
+          <span className="readout__k">Solar state</span>
+          <span className={`readout__v is-${state.tone}`}>{systemStatus.stateLabel || '—'}</span>
+          <span className={`readout__sub stateword is-${state.tone}`}>{state.word}</span>
+        </div>
 
-      {/* ===== MAIN GRID: Chart + Status ===== */}
-      <div className="premium-dash-grid">
-        <div className="dash-card dash-card-delay-1">
+        <div className="readout">
+          <span className="readout__k">Nowcast</span>
+          <span className={`readout__v is-${state.tone}`}>{nowcast.class}</span>
+          <span className="readout__sub">
+            z {nowcast.zScore.toFixed(1)}σ · {(nowcast.confidence * 100).toFixed(0)}% conf
+          </span>
+        </div>
+
+        <div className="readout">
+          <span className="readout__k">Forecast 3h</span>
+          <span className="readout__v is-far">{forecast.probability}%</span>
+          <span className="readout__sub">{forecast.nextClass || '—'}</span>
+        </div>
+
+        <div className="readout">
+          <span className="readout__k">Peak flux</span>
+          <span className="readout__v">{fmtFlux(nowcast.peakFlux)}</span>
+          <span className="readout__sub">W/m²</span>
+        </div>
+
+        <div className="readout">
+          <span className="readout__k">Hardness</span>
+          <span
+            className={`readout__v is-${hardnessRatio.preFlareSignal ? 'near' : 'mid'}`}
+          >
+            {hardnessRatio.current.toFixed(4)}
+          </span>
+          <span className="readout__sub">
+            {hardnessRatio.preFlareSignal
+              ? `+${hardnessRatio.minutesEarly} min early`
+              : `limit 0.0600`}
+          </span>
+        </div>
+
+        <div className="readout">
+          <span className="readout__k">Lead time</span>
+          <span className="readout__v is-far">
+            {forecast.leadTime ? `+${forecast.leadTime}` : '—'}
+          </span>
+          <span className="readout__sub">min vs GOES onset</span>
+        </div>
+      </div>
+
+      <ImpactStrip />
+
+      {/* --------------------------------------------------------------- grid */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 7fr) minmax(20rem, 5fr)',
+          gap: '1.5rem',
+          alignItems: 'start',
+        }}
+        className="dash-grid"
+      >
+        <div className="panel" data-reveal>
           <FluxChart data={fluxData} range={range} onRange={setRange} />
         </div>
-        <div className="dash-card dash-card-delay-2">
+
+        <div className="panel" data-reveal>
           <StatusBlock />
         </div>
-      </div>
 
-      {/* ===== BOTTOM GRID ===== */}
-      <div className="premium-dash-bottom">
-        <div className="dash-card dash-card-delay-3">
+        <div className="panel" data-reveal>
           <HardnessMeter data={hardnessRatio} fluxData={fluxData} />
         </div>
-        <div className="dash-card dash-card-delay-3">
+
+        <div className="panel" data-reveal>
           <AlertList alerts={alerts} />
         </div>
-        <div className="dash-card dash-card-delay-3">
+
+        <div className="panel" data-reveal>
           <DataSourcePanel />
         </div>
       </div>
-
-
     </div>
   );
 }
