@@ -62,15 +62,31 @@ export default function Metrics() {
     };
   }, []);
 
+  /* The route head, including the One Kicker, is rendered once and the body
+     varies beneath it. Returning three separate heads for the loaded, loading
+     and refused states put three kickers in the file and would have put a
+     kicker on screen each time the state changed. */
+  const head = (
+    <div className="console__head">
+      <div>
+        <span className="eyebrow">Sheet 05 · model validation</span>
+        <h1 className="title">Validation</h1>
+      </div>
+      <div className="console__status">
+        {m && (
+          <>
+            <span className="muted">test period {m.testPeriod || '—'}</span>
+            <span className="muted">n = {m.totalEvents ?? '—'}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   if (failed) {
     return (
       <div className="console">
-        <div className="console__head">
-          <div>
-            <span className="eyebrow">Sheet 05 · model validation</span>
-            <h1 className="title">Validation</h1>
-          </div>
-        </div>
+        {head}
         <div className="gateblock" data-reveal>
           <div className="gateblock__head">
             <span className="gateblock__title">Metrics unavailable</span>
@@ -96,12 +112,7 @@ export default function Metrics() {
   if (!m) {
     return (
       <div className="console">
-        <div className="console__head">
-          <div>
-            <span className="eyebrow">Sheet 05 · model validation</span>
-            <h1 className="title">Validation</h1>
-          </div>
-        </div>
+        {head}
         <div className="calibrating">
           <div className="calibrating__bar">
             <i />
@@ -118,16 +129,7 @@ export default function Metrics() {
 
   return (
     <div className="console" ref={ref}>
-      <div className="console__head">
-        <div>
-          <span className="eyebrow">Sheet 05 · model validation</span>
-          <h1 className="title">Validation</h1>
-        </div>
-        <div className="console__status">
-          <span className="muted">test period {m.testPeriod || '—'}</span>
-          <span className="muted">n = {m.totalEvents ?? '—'}</span>
-        </div>
-      </div>
+      {head}
 
       {/* ------------------------------------------------------------- M-class */}
       <section style={{ marginBottom: '2.5rem' }} data-reveal>
