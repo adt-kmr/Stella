@@ -1,226 +1,334 @@
-import { useState, useEffect } from 'react';
-import { formatUTC, fmtFlux } from '../lib/data';
+import { useState, useEffect, useCallback } from 'react';
+import { formatUTC, fmtFlux } from '../lib/data.js';
+import { useReveal } from '../useReveal.js';
+
+const SPEEDS = [1, 5, 10, 50, 100];
+const SOURCES = ['PRADAN', 'GOES', 'SIMULATED'];
+
+/* The hardness threshold, quoted so the replay can say whether the
+   pre-flare warning would have fired at this point in the event. */
+const THRESHOLD = 0.06;
 
 export default function Replay({ event }) {
   const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); 
+  const [cursor, setCursor] = useState(0);
   const [speed, setSpeed] = useState(10);
   const [source, setSource] = useState('PRADAN');
-  const [simulating, setSimulating] = useState(false);
+  const [points, setPoints] = useState(null);
+  const [failed, setFailed] = useState(null);
+  const ref = useReveal();
 
-  const [replayPoints, setReplayPoints] = useState([]);
-  const [activePoint, setActivePoint] = useState(null);
+  const eventId = event?.id ?? 6;
 
   useEffect(() => {
-    const eid = event ? event.id : 6;
-    setSimulating(true);
-    fetch(`/api/replay/${eid}`)
-      .then(r => r.json())
-      .then(data => {
-        setReplayPoints(data.points);
-        setProgress(0);
-        if (data.points.length > 0) {
-          setActivePoint(data.points[0]);
-        }
-        setSimulating(false);
+    let live = true;
+    setPoints(null);
+    setFailed(null);
+    setCursor(0);
+    setPlaying(false);
+
+    fetch(`/api/replay/${eventId}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
       })
-      .catch(err => {
-        console.error("Replay API offline", err);
-        setSimulating(false);
-      });
-  }, [event]);
-
-  useEffect(() => {
-    if (!playing || replayPoints.length === 0) return;
-    const timer = setInterval(() => {
-      setProgress(p => {
-        const nextIdx = p + 1;
-        if (nextIdx >= replayPoints.length) {
-          setPlaying(false);
-          return p;
+      .then((d) => {
+        if (live) setPoints(d.points || []);
+      })
+      .catch((err) => {
+        if (live) {
+          setFailed(err.message || 'request failed');
+          setPoints([]);
         }
-        setActivePoint(replayPoints[nextIdx]);
-        return nextIdx;
+      });
+
+    return () => {
+      live = false;
+    };
+  }, [eventId]);
+
+  // The scrub interval. Paused on the last sample rather than wrapping,
+  // because a replay that silently restarts reads as a glitch.
+  useEffect(() => {
+    if (!playing || !points || points.length === 0) return;
+    const timer = setInterval(() => {
+      setCursor((c) => {
+        if (c + 1 >= points.length) {
+          setPlaying(false);
+          return c;
+        }
+        return c + 1;
       });
     }, 1000 / speed);
     return () => clearInterval(timer);
-  }, [playing, speed, replayPoints]);
+  }, [playing, speed, points]);
 
-  const handleSeek = (e) => {
-    if (replayPoints.length === 0) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const frac = (e.clientX - r.left) / r.width;
-    const idx = Math.min(replayPoints.length - 1, Math.max(0, Math.floor(frac * replayPoints.length)));
-    setProgress(idx);
-    setActivePoint(replayPoints[idx]);
+  const seek = useCallback(
+    (e) => {
+      if (!points || points.length === 0) return;
+      const r = e.currentTarget.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      setCursor(Math.min(points.length - 1, Math.floor(frac * points.length)));
+    },
+    [points]
+  );
+
+  const reset = () => {
+    setCursor(0);
+    setPlaying(false);
   };
 
-  const soft = activePoint ? activePoint.softFlux : 5e-8;
-  const hard = activePoint ? activePoint.hardFlux : 3e-9;
-  const hr = activePoint ? activePoint.hardnessRatio : 0.035;
-  const pct = replayPoints.length > 1 ? (progress / (replayPoints.length - 1)) * 100 : 0;
+  const at = points && points.length > 0 ? points[cursor] : null;
+  const pct = points && points.length > 1 ? (cursor / (points.length - 1)) * 100 : 0;
 
-  return (
-    <div className="premium-dash select-none">
-      <div className="dash-section-head">
-        <span className="dash-section-tag">Replay</span>
-        <h2 className="dash-section-title">Hardware Replay Simulator</h2>
-        {event && (
-          <p className="dash-section-desc">
-            TARGET: <span className="text-[#F1C40F] font-bold">{event.cls}</span>
-            <span className="ml-3">{formatUTC(event.ts)}</span>
-          </p>
+  const controls = (
+    <div className="panel" data-reveal>
+      <div className="panel__head">
+        <div>
+          <h2>Transport</h2>
+          <span className="readout__k">step through a recorded event one sample at a time</span>
+        </div>
+        {at && (
+          <span className="readout__k">
+            {formatUTC(at.timestamp).slice(11)}Z
+          </span>
         )}
       </div>
 
-      {/* Controls Card */}
-      <div className="dash-card p-4 mb-4">
-        <div className="flex flex-wrap items-center gap-6">
-          <div className="flex gap-2">
-            <button 
-              className={`px-4 py-1.5 rounded text-xs uppercase tracking-wider font-bold transition-all cursor-pointer ${
-                playing 
-                  ? 'bg-red-500 hover:bg-red-600 text-white' 
-                  : 'bg-white hover:bg-gray-100 text-black shadow-md shadow-white/10'
-              }`}
-              onClick={() => setPlaying(!playing)}
-            >
-              {playing ? 'PAUSE' : 'PLAY'}
-            </button>
-            <button 
-              className="px-4 py-1.5 rounded text-xs uppercase tracking-wider font-bold bg-[#21262D] hover:bg-[#30363D] text-[#8B949E] hover:text-[#E6EDF3] border border-[#30363D] cursor-pointer"
-              onClick={() => { 
-                setProgress(0); 
-                setPlaying(false); 
-                if(replayPoints.length > 0) setActivePoint(replayPoints[0]); 
-              }}
-            >
-              RESET
-            </button>
-          </div>
-          
-          <div className="h-6 w-[1px] bg-[#30363D]" />
-          
-          {/* Speed Multiplier */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[#8B949E] font-mono uppercase">ACCELERATION:</span>
-            <div className="flex bg-[#0D1117] p-0.5 border border-[#30363D] rounded">
-              {[1, 5, 10, 50, 100].map(s => (
-                <button 
-                  key={s} 
-                  className={`text-[10px] font-mono px-2.5 py-0.5 rounded cursor-pointer transition-all ${speed === s ? 'bg-white text-black font-bold shadow-sm' : 'text-[#8B949E] hover:text-white'}`} 
-                  onClick={() => setSpeed(s)}
-                >
-                  {s}X
-                </button>
-              ))}
-            </div>
-          </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.6rem' }}>
+          <button
+            className="btn btn--sm"
+            onClick={() => setPlaying((p) => !p)}
+            disabled={!points || points.length === 0}
+          >
+            {playing ? 'Pause' : 'Play'}
+          </button>
+          <button className="btn btn--ghost btn--sm" onClick={reset} disabled={!points}>
+            Reset
+          </button>
+        </div>
 
-          <div className="h-6 w-[1px] bg-[#30363D]" />
-
-          {/* Telemetry Source */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[#8B949E] font-mono uppercase">STREAM SOURCE:</span>
-            <div className="flex bg-[#0D1117] p-0.5 border border-[#30363D] rounded">
-              {['PRADAN', 'GOES', 'SIMULATED'].map(s => (
-                <button 
-                  key={s} 
-                  className={`text-[10px] font-mono px-2.5 py-0.5 rounded cursor-pointer transition-all ${source === s ? 'bg-white text-black font-bold shadow-sm' : 'text-[#8B949E] hover:text-white'}`} 
-                  onClick={() => setSource(s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+        <div>
+          <span className="readout__k" style={{ display: 'block', marginBottom: '0.4rem' }}>
+            Acceleration
+          </span>
+          <div className="seg" role="group" aria-label="Playback speed">
+            {SPEEDS.map((s) => (
+              <button key={s} aria-pressed={speed === s} onClick={() => setSpeed(s)}>
+                {s}×
+              </button>
+            ))}
           </div>
+        </div>
+
+        <div>
+          <span className="readout__k" style={{ display: 'block', marginBottom: '0.4rem' }}>
+            Stream source
+          </span>
+          <div className="seg" role="group" aria-label="Telemetry source">
+            {SOURCES.map((s) => (
+              <button key={s} aria-pressed={source === s} onClick={() => setSource(s)}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+          <span className="readout__k" style={{ display: 'block' }}>
+            Progress
+          </span>
+          <span className="readout__v">{pct.toFixed(0)}%</span>
         </div>
       </div>
 
-      {/* Seek Track Bar */}
-      <div className="dash-card p-4 mb-4">
-        <div className="relative cursor-pointer" onClick={handleSeek}>
-          <div className="h-2 bg-[#0D1117] border border-[#30363D] rounded-full overflow-hidden">
-            <div className="h-full bg-white rounded-full transition-all duration-100" style={{ width: `${pct}%`, boxShadow: '0 0 10px rgba(255,255,255,0.3)' }} />
-          </div>
-          <div className="flex justify-between items-center mt-2.5">
-            <span className="text-[10px] text-[#8B949E] font-mono">
-              TIME TAG: <span className="text-[#E6EDF3]">{activePoint ? new Date(activePoint.timestamp).toISOString().slice(11, 19) : '00:00:00'} UTC</span>
-            </span>
-            <span className="text-xs text-white font-mono font-bold">
-              PROGRESS: {pct.toFixed(0)}%
-            </span>
-            <span className="text-[10px] text-[#8B949E] font-mono">
-              DURATION: {replayPoints.length > 0 ? `+${Math.floor((replayPoints.length * 10) / 60)} min` : '+60 min'}
-            </span>
-          </div>
+      {/* The seek track. A 10-tick ruler, so a position can be cited. */}
+      <div style={{ marginTop: '1.25rem' }}>
+        <div
+          className="seek"
+          onClick={seek}
+          role="slider"
+          tabIndex={0}
+          aria-label="Replay position"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(pct)}
+          onKeyDown={(e) => {
+            if (!points || points.length === 0) return;
+            if (e.key === 'ArrowRight') setCursor((c) => Math.min(points.length - 1, c + 1));
+            if (e.key === 'ArrowLeft') setCursor((c) => Math.max(0, c - 1));
+          }}
+        >
+          <i style={{ width: `${pct}%` }} />
+        </div>
+        <div className="seeklabel">
+          <span>
+            {points && points.length > 0
+              ? `+${Math.round((cursor * 10) / 60)} min into event`
+              : 'no samples loaded'}
+          </span>
+          <span>
+            {points && points.length > 0 ? `${cursor + 1} of ${points.length} samples` : ''}
+          </span>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Realtime Readings */}
-      <div className="dash-card p-4 space-y-4">
-        <div className="dash-card-header-left">
-          <div className="dash-card-bar" style={{ background: 'linear-gradient(180deg, #FFFFFF, #3498DB)' }} />
-          <span className="dash-card-title">Replayed Physical Telemetry</span>
-          {simulating && (
-            <span className="text-[9px] font-mono text-white/60 uppercase animate-pulse ml-3">
-              SYNCING REPLAY STREAM...
-            </span>
+  const body = () => {
+    if (failed) {
+      return (
+        <div className="gateblock" style={{ maxWidth: 'none' }}>
+          <div className="gateblock__head">
+            <span className="gateblock__title">Replay unavailable</span>
+            <span className="gateblock__verdict">refused</span>
+          </div>
+          <p style={{ margin: 0, fontSize: 'var(--ui-sm)' }}>
+            <code>GET /api/replay/{eventId}</code> returned {failed}. The replay stream is
+            reconstructed from stored samples, so an unreachable pipeline leaves nothing to scrub
+            through.
+          </p>
+        </div>
+      );
+    }
+
+    if (points === null) {
+      return (
+        <div className="calibrating">
+          <div className="calibrating__bar">
+            <i />
+          </div>
+          <span>Reconstructing the event</span>
+        </div>
+      );
+    }
+
+    if (points.length === 0) {
+      return (
+        <div className="absent">
+          <p>No stored samples for event {eventId}.</p>
+          <p>
+            The pipeline writes a replay buffer per detected event. This one has not been
+            captured yet.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className="panel" data-reveal>
+          <div className="panel__head">
+            <div>
+              <h2>Replayed telemetry</h2>
+              <span className="readout__k">
+                {source} stream · {points.length} samples
+              </span>
+            </div>
+            {at?.status?.hardnessRatio?.preFlareSignal && (
+              <span className="stateword is-near">
+                pre-flare warning · +{at.status.hardnessRatio.minutesEarly} min
+              </span>
+            )}
+          </div>
+
+          <div className="readouts" style={{ marginBottom: '1.5rem' }}>
+            <div className="readout">
+              <span className="readout__k">SoLEXS soft</span>
+              <span className="readout__v is-near">{fmtFlux(at?.softFlux ?? 5e-8)}</span>
+              <span className="readout__sub">W/m²</span>
+            </div>
+            <div className="readout">
+              <span className="readout__k">HEL1OS hard</span>
+              <span className="readout__v is-far">{fmtFlux(at?.hardFlux ?? 3e-9)}</span>
+              <span className="readout__sub">W/m² equivalent</span>
+            </div>
+            <div className="readout">
+              <span className="readout__k">Hardness</span>
+              <span
+                className={`readout__v is-${(at?.hardnessRatio ?? 0) >= THRESHOLD ? 'near' : 'mid'}`}
+              >
+                {(at?.hardnessRatio ?? 0).toFixed(4)}
+              </span>
+              <span className="readout__sub">limit {THRESHOLD.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* What the models believed at this instant in the event. */}
+          {at?.status && (
+            <>
+              <div className="panel__head" style={{ marginBottom: '1rem' }}>
+                <div>
+                  <h2>Model state at this sample</h2>
+                  <span className="readout__k">
+                    the same inferences the live sheet would have shown
+                  </span>
+                </div>
+              </div>
+              <dl className="bench">
+                <dt>Nowcast</dt>
+                <dd className="is-near">
+                  {at.status.nowcast.class} · {at.status.nowcast.currentPhase}
+                </dd>
+                <dt>Forecast probability</dt>
+                <dd className="is-far">{at.status.forecast.probability}%</dd>
+                <dt>Z-score</dt>
+                <dd>{at.status.nowcast.zScore.toFixed(2)}σ</dd>
+                <dt>Solar state</dt>
+                <dd>{at.status.systemStatus?.stateLabel ?? '—'}</dd>
+              </dl>
+            </>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="dash-card-body !p-4 text-center">
-            <div className="text-[9px] uppercase tracking-wider font-semibold font-mono text-[#8B949E] mb-1">SoLEXS (Soft X-Ray)</div>
-            <div className="text-xl font-bold font-mono text-[#E6EDF3]">{fmtFlux(soft)}</div>
-            <div className="text-[8px] text-[#566176] font-mono mt-1">W/m²</div>
-          </div>
-          <div className="dash-card-body !p-4 text-center">
-            <div className="text-[9px] uppercase tracking-wider font-semibold font-mono text-[#8B949E] mb-1">HEL1OS (Hard X-Ray)</div>
-            <div className="text-xl font-bold font-mono text-[#3498DB]">{fmtFlux(hard)}</div>
-            <div className="text-[8px] text-[#566176] font-mono mt-1">W/m² equivalent</div>
-          </div>
-          <div className="dash-card-body !p-4 text-center">
-            <div className="text-[9px] uppercase tracking-wider font-semibold font-mono text-[#8B949E] mb-1">Hardness Ratio</div>
-            <div className={`text-xl font-bold font-mono ${hr > 0.06 ? 'text-orange-400' : 'text-[#8B949E]'}`}>
-              {hr.toFixed(4)}
-            </div>
-            <div className="text-[8px] text-[#566176] font-mono mt-1">HEL1OS / SoLEXS</div>
-          </div>
-        </div>
-
-        {/* Model State Simulator readout */}
-        {activePoint && activePoint.status && (
-          <div className="dash-card-body !p-4 font-mono text-[10px] space-y-2">
-            <div className="text-[9px] uppercase font-bold text-white/80 border-b border-[#30363D]/40 pb-1">
-              Pipeline Neural Inferences:
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[#8B949E]">
-              <div>NOWCAST STATE: <span className="text-red-500 font-bold block">{activePoint.status.systemStatus.stateLabel} ({activePoint.status.nowcast.class})</span></div>
-              <div>FORECAST PROBABILITY: <span className="text-[#3498DB] font-bold block">{activePoint.status.forecast.probability}%</span></div>
-              <div>ONSET DETECTED: <span className="text-[#E6EDF3] block">{activePoint.status.nowcast.currentPhase}</span></div>
-              <div>Z-SCORE VALUE: <span className="text-[#E6EDF3] block">{activePoint.status.nowcast.zScore.toFixed(2)}σ</span></div>
-            </div>
-            {activePoint.status.hardnessRatio.preFlareSignal && (
-              <div className="bg-white/10 text-white border border-white/20 px-2 py-1 rounded text-[9px] font-bold animate-pulse text-center">
-                ⚠️ SPECTRAL HARDENING DETECTED: PRE-FLARE WARNING FIRED (+{activePoint.status.hardnessRatio.minutesEarly} MINUTES ADVANCE WARNING)
+        {event && (
+          <div className="panel" style={{ marginTop: '1.5rem' }} data-reveal>
+            <div className="panel__head">
+              <div>
+                <h2>Event under replay</h2>
+                <span className="readout__k">as recorded in the catalog</span>
               </div>
-            )}
+            </div>
+            <dl className="bench">
+              <dt>Class</dt>
+              <dd className="is-near">{event.cls}</dd>
+              <dt>Peak flux</dt>
+              <dd>{event.peak.toExponential(2)} W/m²</dd>
+              <dt>Lead time</dt>
+              <dd className="is-mid">
+                {event.lead > 0 ? `+${event.lead} min` : 'did not precede onset'}
+              </dd>
+              <dt>Confidence</dt>
+              <dd>{event.conf > 0 ? `${event.conf}%` : '—'}</dd>
+              <dt>Instruments</dt>
+              <dd>{event.instrument || event.instr}</dd>
+              <dt>Duration</dt>
+              <dd>{event.duration || event.dur}</dd>
+            </dl>
           </div>
         )}
+      </>
+    );
+  };
 
-        {/* Cataloged Event Details */}
+  return (
+    <div className="console" ref={ref}>
+      <div className="console__head">
+        <div>
+          <span className="eyebrow">Sheet 03 · historical replay</span>
+          <h1 className="title">Event replay</h1>
+        </div>
         {event && (
-          <div className="border-t border-[#30363D]/40 pt-3 text-[9px] font-mono text-[#566176] flex flex-wrap gap-x-6 gap-y-1">
-            <div>EVENT ID: <span className="text-[#8B949E]">{event.id}</span></div>
-            <div>PEAK FLUX: <span className="text-[#8B949E]">{event.peak.toExponential(1)} W/m²</span></div>
-            <div>GOES LEAD TIME: <span className="text-white font-bold">+{event.lead} MIN</span></div>
-            <div>INSTRUMENT COMBINATION: <span className="text-[#8B949E]">{event.instrument || event.instr}</span></div>
-            <div>STORM DURATION: <span className="text-[#8B949E]">{event.duration || event.dur}</span></div>
-            <div>DETECTION CONFIDENCE: <span className="text-green-400 font-bold">{event.conf}%</span></div>
+          <div className="console__status">
+            <span className="stateword is-near">{event.cls}</span>
+            <span className="muted">{formatUTC(event.ts)}</span>
           </div>
         )}
       </div>
+
+      {controls}
+      <div style={{ marginTop: '1.5rem' }}>{body()}</div>
     </div>
   );
 }
