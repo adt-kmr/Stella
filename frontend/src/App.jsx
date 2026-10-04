@@ -1,114 +1,82 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import Landing from './components/Landing';
-import Header from './components/Header';
-import Dashboard from './components/Dashboard';
-import ImpactPanel from './components/ImpactPanel';
-import Replay from './components/Replay';
-import Catalog from './components/Catalog';
-import Metrics from './components/Metrics';
-import { initWebSocketConnection, requestNotificationPermission, useNotificationWatcher } from './lib/data';
+import React, { useEffect } from 'react';
 
-// ── Hash-based routing helpers ─────────────────────────────
-function getViewFromHash() {
-  const hash = window.location.hash.replace('#', '');
-  const valid = ['dashboard', 'impact', 'replay', 'catalog', 'metrics'];
-  return valid.includes(hash) ? hash : null;
-}
+import { Link, usePath, ROUTES, routeFor } from './router.jsx';
+import { initWebSocketConnection, requestNotificationPermission, useNotificationWatcher } from './lib/data.js';
 
-function setHash(view) {
-  window.location.hash = view;
-}
+import Landing from './components/Landing.jsx';
+import Dashboard from './components/Dashboard.jsx';
+import Impact from './components/ImpactPanel.jsx';
+import Replay from './components/Replay.jsx';
+import Catalog from './components/Catalog.jsx';
+import Metrics from './components/Metrics.jsx';
+
+/**
+ * The sheet both routes are printed on: `/` is the index, the console routes
+ * are the working sheets. Masthead, registration marks and the footer stamp
+ * are shared, which is what keeps the index and the console reading as one
+ * document rather than two sites.
+ */
+const VIEWS = {
+  '/dashboard': Dashboard,
+  '/impact': Impact,
+  '/replay': Replay,
+  '/catalog': Catalog,
+  '/metrics': Metrics,
+};
 
 export default function App() {
-  // Read initial view from URL hash, default to 'dashboard'
-  const initialView = getViewFromHash() || 'dashboard';
-  // If we came from a hash, skip landing; otherwise show it
-  const hasHashOnLoad = useRef(!!window.location.hash);
+  const path = usePath();
+  const onIndex = path === '/';
+  const route = routeFor(path);
+  const View = VIEWS[path];
 
-  const [showLanding, setShowLanding] = useState(!hasHashOnLoad.current);
-  const [view, setView] = useState(initialView);
-  const [activeTab, setActiveTab] = useState(initialView);
-  const [replayEvent, setReplayEvent] = useState(null);
-  const [time, setTime] = useState(new Date());
-  const [initDone, setInitDone] = useState(false);
-  const [transitioning, setTransitioning] = useState(false);
-
-  // Watch flare class for automatic push notifications
-  useNotificationWatcher();
-
+  // The pipe is opened once. The console lives on the socket; if it drops,
+  // data.js falls back to REST polling and retries the socket.
   useEffect(() => {
-    if (!initDone) {
-      initWebSocketConnection();
-      // Request push notification permission after a short delay
-      setTimeout(() => requestNotificationPermission(), 3000);
-      setInitDone(true);
-    }
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, [initDone]);
-
-  // Sync hash whenever view changes
-  useEffect(() => {
-    if (!showLanding) {
-      setHash(view);
-    }
-  }, [view, showLanding]);
-
-  // Listen for popstate (browser back/forward) to sync view
-  useEffect(() => {
-    const onHashChange = () => {
-      const v = getViewFromHash();
-      if (v && v !== activeTab) {
-        setActiveTab(v);
-        setView(v);
-      }
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, [activeTab]);
-
-  const handleView = useCallback((v) => {
-    if (v === activeTab) return;
-    setActiveTab(v);
-    setHash(v);  // update URL hash immediately
-    setTransitioning(true);
-    setTimeout(() => {
-      setView(v);
-      setTimeout(() => setTransitioning(false), 50);
-    }, 180);
-  }, [activeTab]);
-
-  const handleEnter = useCallback(() => {
-    setShowLanding(false);
-    setHash(view);
-  }, [view]);
-
-  if (showLanding) {
-    return <Landing onEnter={handleEnter} />;
-  }
-
-  const mainContent = (
-    <div className="flex-1 overflow-auto" style={{ padding: 'clamp(12px, 2vw, 24px)' }}>
-      {view === 'dashboard' && <Dashboard onNavigate={handleView} />}
-      {view === 'impact' && <ImpactPanel />}
-      {view === 'replay' && <Replay event={replayEvent} />}
-      {view === 'catalog' && <Catalog onReplay={e => { setReplayEvent(e); handleView('replay'); }} />}
-      {view === 'metrics' && <Metrics />}
-    </div>
-  );
+    initWebSocketConnection();
+    const id = setTimeout(() => requestNotificationPermission(), 3000);
+    return () => clearTimeout(id);
+  }, []);
 
   return (
-    <>
-      {/* Main app shell */}
-      <div className="app-shell">
-        <Header view={activeTab} onView={handleView} time={time} onLogoClick={() => {
-          setShowLanding(true);
-          window.location.hash = '';
-        }} />
-        <div className={`flex-1 overflow-auto ${transitioning ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'} transition-all duration-200 ease-out`}>
-          {mainContent}
+    <div className="sheet">
+      <span className="reg reg--tl" aria-hidden="true" />
+      <span className="reg reg--tr" aria-hidden="true" />
+      <span className="reg reg--bl" aria-hidden="true" />
+      <span className="reg reg--br" aria-hidden="true" />
+
+      <header className="masthead">
+        <Link className="masthead__mark" to="/">
+          STELLA
+        </Link>
+
+        <nav className="masthead__nav">
+          {ROUTES.map((r) => (
+            <Link key={r.to} className={r.to === path ? 'is-here' : ''} to={r.to}>
+              {r.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Sheet metadata. This is what makes the index and the console read as
+            one document: both are sheets of the same drawing set. */}
+        <div className="masthead__meta">
+          <span>
+            Sheet <b>{route.sheet}</b>
+          </span>
+          <span>
+            Rev <b>{route.label}</b>
+          </span>
         </div>
-      </div>
-    </>
+      </header>
+
+      <main>{onIndex ? <Landing /> : <View route={route} />}</main>
+
+      <footer className="stamp">
+        <span>STELLA</span>
+        <span>Solar Temporal Event Learning &amp; Likelihood Assessment</span>
+        <span>Software Engineering Project · Course Code UCS503</span>
+      </footer>
+    </div>
   );
 }
