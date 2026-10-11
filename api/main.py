@@ -1105,3 +1105,15 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+@app.get("/api/health")
+def get_health():
+    """Lightweight readiness probe for load balancers and health checks."""
+    return {
+        "status": "ok" if _latest_status is not None else "initializing",
+        "service": "stella",
+        "timeseriesPoints": len(_timeseries_history),
+        "alertsBuffered": len(_alerts_history),
+        "checkedAt": datetime.utcnow().isoformat() + "Z",
+    }
