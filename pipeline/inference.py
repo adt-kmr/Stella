@@ -74,3 +74,17 @@ def run_inference(
             "hard_log": float(np.log10(np.maximum(hard[-1], 1e-10))),
         },
     )
+
+
+def summarize_result(result: InferenceResult) -> dict[str, object]:
+    """Compact operator-facing dict for logs, alerts and API payloads."""
+    decision = result.decision
+    return {
+        "status": decision.status,
+        "flare_class": decision.flare_class,
+        "probability": round(float(decision.probability), 4),
+        "lead_minutes": round(float(decision.lead_minutes), 1),
+        "nowcast_prob": round(float(result.nowcast_prob), 4),
+        "forecast_prob": round(float(result.forecast_prob), 4),
+        "anomaly_zscore": round(float(result.anomaly_zscore), 3),
+    }
