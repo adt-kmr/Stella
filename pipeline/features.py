@@ -112,3 +112,30 @@ def build_feature_frame(
         ],
         axis=-1,
     )
+
+
+def rolling_mean(arr: np.ndarray, window: int = 15) -> np.ndarray:
+    """Trailing moving average over ``window`` samples (no look-ahead).
+
+    The warm-up region averages only the samples available so far, keeping
+    the output length equal to the input.
+    """
+    x = np.asarray(arr, dtype=float)
+    out = np.empty_like(x)
+    for i in range(len(x)):
+        a = max(0, i - window + 1)
+        out[i] = x[a : i + 1].mean()
+    return out
+
+
+def exponential_moving_average(arr: np.ndarray, alpha: float = 0.3) -> np.ndarray:
+    """Causal exponential moving average with smoothing factor ``alpha``."""
+    x = np.asarray(arr, dtype=float)
+    if x.size == 0:
+        return x.copy()
+    a = float(np.clip(alpha, 1e-6, 1.0))
+    out = np.empty_like(x)
+    out[0] = x[0]
+    for i in range(1, len(x)):
+        out[i] = a * x[i] + (1.0 - a) * out[i - 1]
+    return out
