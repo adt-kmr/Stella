@@ -15,6 +15,7 @@ from api.models import (
 )
 from api.ws import manager
 from pipeline.auto_train import start_auto_retrain
+from pipeline.impact import DOMAINS
 
 app = FastAPI(title="Helios-Cortex API Server")
 
@@ -1147,3 +1148,9 @@ FLARE_CLASS_REFERENCE = [
 def get_flare_classes():
     """Reference table for the GOES A/B/C/M/X flare scale."""
     return {"scale": FLARE_CLASS_REFERENCE, "count": len(FLARE_CLASS_REFERENCE)}
+
+
+@app.get("/api/domains")
+def get_domains():
+    """The monitored infrastructure domains tracked by the impact engine."""
+    return {"domains": DOMAINS, "count": len(DOMAINS)}
