@@ -139,3 +139,23 @@ def exponential_moving_average(arr: np.ndarray, alpha: float = 0.3) -> np.ndarra
     for i in range(1, len(x)):
         out[i] = a * x[i] + (1.0 - a) * out[i - 1]
     return out
+
+
+def rolling_std(arr: np.ndarray, window: int = 15) -> np.ndarray:
+    """Trailing standard deviation over ``window`` samples."""
+    x = np.asarray(arr, dtype=float)
+    out = np.full_like(x, np.nan)
+    for i in range(len(x)):
+        a = max(0, i - window + 1)
+        out[i] = x[a : i + 1].std()
+    return out
+
+
+def rolling_percentile(arr: np.ndarray, window: int = 15, q: float = 90.0) -> np.ndarray:
+    """Trailing ``q``-th percentile (0-100) over ``window`` samples."""
+    x = np.asarray(arr, dtype=float)
+    out = np.full_like(x, np.nan)
+    for i in range(len(x)):
+        a = max(0, i - window + 1)
+        out[i] = np.percentile(x[a : i + 1], q)
+    return out
