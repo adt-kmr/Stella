@@ -1132,3 +1132,18 @@ def get_version():
         "modelVersion": model_version,
         "apiSurface": "v1",
     }
+
+
+FLARE_CLASS_REFERENCE = [
+    {"class": "A", "peakFluxMin": 1e-8, "description": "Background-level, no radio impact"},
+    {"class": "B", "peakFluxMin": 1e-7, "description": "Minor brightening, no radio impact"},
+    {"class": "C", "peakFluxMin": 1e-6, "description": "Small flares, R1 blackout possible"},
+    {"class": "M", "peakFluxMin": 1e-5, "description": "Moderate flares, R1-R2 blackouts"},
+    {"class": "X", "peakFluxMin": 1e-4, "description": "Major flares, R3+ blackouts"},
+]
+
+
+@app.get("/api/classes")
+def get_flare_classes():
+    """Reference table for the GOES A/B/C/M/X flare scale."""
+    return {"scale": FLARE_CLASS_REFERENCE, "count": len(FLARE_CLASS_REFERENCE)}
