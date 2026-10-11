@@ -87,3 +87,17 @@ def percentile_threshold(flux: np.ndarray, window: int = 15, q: float = 99.0) ->
     """
     x = log10_flux(flux)
     return rolling_percentile(x, window, q)
+
+
+def merge_events(events: list[tuple[int, int]], gap: int = 2) -> list[tuple[int, int]]:
+    """Coalesce detections separated by fewer than ``gap`` quiet steps."""
+    if not events:
+        return []
+    merged = [events[0]]
+    for start, end in events[1:]:
+        last_start, last_end = merged[-1]
+        if start - last_end <= gap:
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    return merged
