@@ -130,3 +130,16 @@ def severity_score(flare_class: str) -> float:
     magnitude = flare_class_float(flare_class)
     capped = min(max(math.log10(max(magnitude, 1e-3)) + 3.0, 0.0), 5.0)
     return round((capped / 5.0) * 100.0, 1)
+
+
+def regions_for_station(station: str) -> list[dict]:
+    """All regions hosting the given ISRO station (case-insensitive)."""
+    key = (station or "").strip().lower()
+    return [r for r in INDIA_REGIONS if (r.get("isro_station") or "").lower() == key]
+
+
+def regions_by_risk(level: str, kind: str = "gps") -> list[dict]:
+    """Regions whose ``gps`` or ``gic`` baseline matches ``level`` (low/medium/high)."""
+    field = "gic_risk" if kind.lower() in ("gic", "power", "grid") else "gps_risk"
+    wanted = level.strip().lower()
+    return [r for r in INDIA_REGIONS if r[field].lower() == wanted]
