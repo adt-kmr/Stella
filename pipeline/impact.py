@@ -6,6 +6,7 @@ forecast lead time, so every call is reproducible and unit-testable.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal
 
@@ -116,3 +117,16 @@ def india_risks(flare_class: str) -> list[dict]:
             }
         )
     return out
+
+
+def overall_risk(flare_class: str, lead_minutes: float = 30.0) -> str:
+    """Highest domain risk across the grid for a scenario."""
+    risks = [d["risk"] for d in domain_risks(flare_class, lead_minutes)]
+    return max(risks, key=RISK_ORDER.index) if risks else "green"
+
+
+def severity_score(flare_class: str) -> float:
+    """Normalise a flare class onto a 0-100 operational severity scale."""
+    magnitude = flare_class_float(flare_class)
+    capped = min(max(math.log10(max(magnitude, 1e-3)) + 3.0, 0.0), 5.0)
+    return round((capped / 5.0) * 100.0, 1)
