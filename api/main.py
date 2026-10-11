@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 
+from api.config import settings
 from api.models import (
     UnifiedStatusModel, TimeseriesPoint, CatalogEventModel,
     ValidationMetricsModel, AlertModel
@@ -1116,4 +1117,18 @@ def get_health():
         "timeseriesPoints": len(_timeseries_history),
         "alertsBuffered": len(_alerts_history),
         "checkedAt": datetime.utcnow().isoformat() + "Z",
+    }
+
+
+@app.get("/api/version")
+def get_version():
+    """Build and schema version reported by the live pipeline."""
+    model_version = "v2.1.3"
+    if _latest_status is not None:
+        model_version = _latest_status["systemStatus"].get("modelVersion", model_version)
+    return {
+        "service": settings.app_name,
+        "appVersion": settings.app_version,
+        "modelVersion": model_version,
+        "apiSurface": "v1",
     }
