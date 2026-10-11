@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .features import log10_flux, rolling_mad
+from .features import log10_flux, rolling_mad, rolling_percentile
 
 
 def adaptive_threshold(flux: np.ndarray, window: int = 15, k: float = 6.0) -> np.ndarray:
@@ -77,3 +77,13 @@ def flare_class_float(label: str) -> float:
         value = 1.0
     factor = {"X": 10.0, "M": 1.0, "C": 0.1, "B": 0.01}.get(cls_char, 1.0)
     return factor * value
+
+
+def percentile_threshold(flux: np.ndarray, window: int = 15, q: float = 99.0) -> np.ndarray:
+    """Rolling ``q``-percentile of log-flux as an alternative decision bound.
+
+    Complements the MAD tracker (:func:`adaptive_threshold`) with a purely
+    empirical quantile, useful when the background is non-Gaussian.
+    """
+    x = log10_flux(flux)
+    return rolling_percentile(x, window, q)
