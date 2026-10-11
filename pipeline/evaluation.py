@@ -151,3 +151,21 @@ def balanced_accuracy(cont: Contingency) -> float:
     spec_denom = cont.correct_null + cont.false_alarms
     specificity = cont.correct_null / spec_denom if spec_denom else 0.0
     return 0.5 * (sensitivity + specificity)
+
+
+def lead_time_stats(alert_times: np.ndarray, event_times: np.ndarray) -> dict[str, float]:
+    """Distribution summary (minutes) of per-alert lead times."""
+    empty = {"min": 0.0, "median": 0.0, "p90": 0.0, "mean": 0.0, "max": 0.0, "count": 0.0}
+    if len(alert_times) == 0 or len(event_times) == 0:
+        return empty
+    alerts = np.abs(np.asarray(alert_times, dtype=float))[:, None]
+    events = np.abs(np.asarray(event_times, dtype=float))[None, :]
+    best = np.clip(np.abs(alerts - events).min(axis=1), 0.0, None)
+    return {
+        "min": float(best.min()),
+        "median": float(np.median(best)),
+        "p90": float(np.percentile(best, 90)),
+        "mean": float(best.mean()),
+        "max": float(best.max()),
+        "count": float(best.size),
+    }
