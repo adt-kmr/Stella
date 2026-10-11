@@ -1154,3 +1154,12 @@ def get_flare_classes():
 def get_domains():
     """The monitored infrastructure domains tracked by the impact engine."""
     return {"domains": DOMAINS, "count": len(DOMAINS)}
+
+
+@app.get("/api/regions")
+def get_regions(zone: Optional[str] = None):
+    """India regions with coordinates, optionally filtered by zone."""
+    regions = INDIA_REGIONS
+    if zone:
+        regions = [r for r in regions if r["zone"] == zone.lower()]
+    return {"count": len(regions), "regions": regions}
