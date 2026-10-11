@@ -94,3 +94,28 @@ def score_run(
         ),
         contingency=cont,
     )
+
+
+def tss(cont: Contingency) -> float:
+    """True skill statistic (Hanssen-Kuipers): POD minus POFD."""
+    o_denom = cont.hits + cont.misses
+    n_denom = cont.false_alarms + cont.correct_null
+    if not o_denom or not n_denom:
+        return 0.0
+    pod_score = cont.hits / o_denom
+    pofd = cont.false_alarms / n_denom
+    return pod_score - pofd
+
+
+def hss(cont: Contingency) -> float:
+    """Heidke skill score: accuracy relative to random chance."""
+    total = cont.hits + cont.misses + cont.false_alarms + cont.correct_null
+    if not total:
+        return 0.0
+    expected = (
+        (cont.hits + cont.misses) * (cont.hits + cont.false_alarms)
+        + (cont.correct_null + cont.misses) * (cont.correct_null + cont.false_alarms)
+    ) / total
+    if total == expected:
+        return 0.0
+    return (cont.hits + cont.correct_null - expected) / (total - expected)
