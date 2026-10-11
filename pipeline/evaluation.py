@@ -119,3 +119,35 @@ def hss(cont: Contingency) -> float:
     if total == expected:
         return 0.0
     return (cont.hits + cont.correct_null - expected) / (total - expected)
+
+
+def precision(cont: Contingency) -> float:
+    """Positive predictive value: hits / (hits + false_alarms)."""
+    denom = cont.hits + cont.false_alarms
+    return cont.hits / denom if denom else 0.0
+
+
+def recall(cont: Contingency) -> float:
+    """Alias for :func:`pod` in the precision/recall vocabulary."""
+    return pod(cont)
+
+
+def f1(cont: Contingency) -> float:
+    """Harmonic mean of precision and recall."""
+    p = precision(cont)
+    r = recall(cont)
+    return 2 * p * r / (p + r) if (p + r) else 0.0
+
+
+def accuracy(cont: Contingency) -> float:
+    """Fraction of all decisions that were correct."""
+    total = cont.hits + cont.misses + cont.false_alarms + cont.correct_null
+    return (cont.hits + cont.correct_null) / total if total else 0.0
+
+
+def balanced_accuracy(cont: Contingency) -> float:
+    """Mean of sensitivity (POD) and specificity."""
+    sensitivity = pod(cont)
+    spec_denom = cont.correct_null + cont.false_alarms
+    specificity = cont.correct_null / spec_denom if spec_denom else 0.0
+    return 0.5 * (sensitivity + specificity)
