@@ -41,6 +41,16 @@ class Store:
         with self._lock:
             return list(reversed(self._alerts[-limit:]))
 
+    def alert_count(self) -> int:
+        """Number of alerts currently held in the buffer."""
+        with self._lock:
+            return len(self._alerts)
+
+    def snapshot(self) -> dict[str, Any]:
+        """Shallow copy of the key/value space, for diagnostics endpoints."""
+        with self._lock:
+            return dict(self._kv)
+
     def latest(self) -> dict[str, Any] | None:
         return self.get("latest")
 
