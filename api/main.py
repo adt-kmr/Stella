@@ -8,14 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 
-from api.config import settings
 from api.models import (
     UnifiedStatusModel, TimeseriesPoint, CatalogEventModel,
     ValidationMetricsModel, AlertModel
 )
 from api.ws import manager
-from pipeline.auto_train import start_auto_retrain
-from pipeline.impact import DOMAINS
 
 app = FastAPI(title="Helios-Cortex API Server")
 
@@ -131,7 +128,7 @@ def init_history():
     try:
         import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from pipeline.ingestion import load_aditya_data
+        from pipeline.ingest import load_aditya_data
         
         aditya_data = load_aditya_data(sample_every=30)
         if aditya_data and len(aditya_data) > 10:
@@ -199,9 +196,6 @@ def init_history():
 @app.on_event("startup")
 async def startup_event():
     init_history()
-    # Start the auto-retrain background thread
-    # Retrains models every 6 hours on fresh NOAA data
-    start_auto_retrain(interval_hours=6, epochs=30, lr=0.001)
 
 @app.get("/api/status", response_model=UnifiedStatusModel)
 def get_status():
@@ -1107,59 +1101,3 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-
-
-@app.get("/api/health")
-def get_health():
-    """Lightweight readiness probe for load balancers and health checks."""
-    return {
-        "status": "ok" if _latest_status is not None else "initializing",
-        "service": "stella",
-        "timeseriesPoints": len(_timeseries_history),
-        "alertsBuffered": len(_alerts_history),
-        "checkedAt": datetime.utcnow().isoformat() + "Z",
-    }
-
-
-@app.get("/api/version")
-def get_version():
-    """Build and schema version reported by the live pipeline."""
-    model_version = "v2.1.3"
-    if _latest_status is not None:
-        model_version = _latest_status["systemStatus"].get("modelVersion", model_version)
-    return {
-        "service": settings.app_name,
-        "appVersion": settings.app_version,
-        "modelVersion": model_version,
-        "apiSurface": "v1",
-    }
-
-
-FLARE_CLASS_REFERENCE = [
-    {"class": "A", "peakFluxMin": 1e-8, "description": "Background-level, no radio impact"},
-    {"class": "B", "peakFluxMin": 1e-7, "description": "Minor brightening, no radio impact"},
-    {"class": "C", "peakFluxMin": 1e-6, "description": "Small flares, R1 blackout possible"},
-    {"class": "M", "peakFluxMin": 1e-5, "description": "Moderate flares, R1-R2 blackouts"},
-    {"class": "X", "peakFluxMin": 1e-4, "description": "Major flares, R3+ blackouts"},
-]
-
-
-@app.get("/api/classes")
-def get_flare_classes():
-    """Reference table for the GOES A/B/C/M/X flare scale."""
-    return {"scale": FLARE_CLASS_REFERENCE, "count": len(FLARE_CLASS_REFERENCE)}
-
-
-@app.get("/api/domains")
-def get_domains():
-    """The monitored infrastructure domains tracked by the impact engine."""
-    return {"domains": DOMAINS, "count": len(DOMAINS)}
-
-
-@app.get("/api/regions")
-def get_regions(zone: Optional[str] = None):
-    """India regions with coordinates, optionally filtered by zone."""
-    regions = INDIA_REGIONS
-    if zone:
-        regions = [r for r in regions if r["zone"] == zone.lower()]
-    return {"count": len(regions), "regions": regions}
