@@ -821,14 +821,18 @@ floors, plus no-lookahead guarantees unit-tested in the feature layers.
 
 ---
 
-# Continuous Integration
+# Documentation Deployment
 
-Two GitHub Actions workflows:
+- **`mkdocs.yml`** — deploys the documentation site to GitHub Pages on every
+  push to `main`.
 
-- **`ci.yml`** — Python test suite + lint (`ruff`, `black`) on every push/PR
-- **`mkdocs.yml`** — deploys the documentation site to GitHub Pages
+Run the test suite and linters locally before opening a pull request:
 
-Every pull request must pass both before merging.
+```bash
+pytest tests/ -v
+ruff check api pipeline scripts tests
+black --check api pipeline scripts tests
+```
 
 ---
 
