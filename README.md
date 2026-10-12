@@ -343,6 +343,7 @@ Stella/
 │   ├── config.py             # pydantic-settings, STELLA_* env
 │   ├── schemas.py            # request/response models
 │   ├── store.py              # in-memory telemetry + alert store
+│   ├── reference.py          # GOES flare-scale + India-region reference tables
 │   ├── dependencies.py
 │   └── routers/
 │       ├── status.py         # GET  /api/status
@@ -351,6 +352,8 @@ Stella/
 │       ├── impact.py         # GET  /api/impact, /api/india-impact
 │       ├── explain.py        # GET  /api/explain
 │       ├── metrics.py        # GET  /api/metrics
+│       ├── meta.py           # GET  /api/health, /version, /classes, /domains, /regions
+│       ├── ops.py            # GET  /api/ops/briefing, /api/ops/runtime
 │       └── ingest.py         # POST /api/update
 │
 ├── pipeline/                 # telemetry ingest + inference
@@ -360,6 +363,7 @@ Stella/
 │   ├── inference.py          # decision logic (alert / watch / silent)
 │   ├── impact.py             # domains + India risk grid
 │   ├── evaluation.py         # POD / FAR / CSI / lead time
+│   ├── ops.py                # operator briefing + runtime digests
 │   └── models/
 │       ├── nowcaster.py      # Conv1D CNN (PyTorch)
 │       ├── forecaster.py     # Dilated TCN (PyTorch)
@@ -726,7 +730,22 @@ pytest tests/ -v
 | `/api/explain?flare_class=M3.5` | GET | XAI explanation |
 | `/api/metrics` | GET | Model validation metrics |
 | `/api/update` | POST | Push telemetry data |
+| `/api/health` | GET | Liveness probe |
+| `/api/version` | GET | App name + version |
+| `/api/classes` | GET | GOES flare-scale reference |
+| `/api/domains` | GET | Monitored impact domains |
+| `/api/regions?zone=south` | GET | India risk regions (optional zone filter) |
+| `/api/ops/briefing` | GET | One-call current-situation digest |
+| `/api/ops/runtime` | GET | Uptime, buffer occupancy, pipeline latency |
 | `/ws/live` | WS | Real-time stream |
+
+The operations endpoints condense live state for on-console operators: call
+`GET /api/ops/briefing` for a headline plus nowcast/forecast/hardness digest,
+or `GET /api/ops/runtime` for process health. From a terminal:
+
+```bash
+python scripts/ops_briefing.py --base-url http://127.0.0.1:8000
+```
 
 ---
 
