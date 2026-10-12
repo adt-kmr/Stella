@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 
 from api.config import settings
-from api.reference import FLARE_CLASS_REFERENCE
+from api.reference import FLARE_CLASS_REFERENCE, INDIA_ZONES, regions_in_zone
 from api.store import Store, get_store
 from pipeline.impact import DOMAINS
 
@@ -53,3 +53,10 @@ def flare_classes() -> dict:
 def monitored_domains() -> dict:
     """The infrastructure domains tracked by the impact engine."""
     return {"domains": DOMAINS, "count": len(DOMAINS)}
+
+
+@router.get("/regions")
+def india_regions(zone: str | None = None) -> dict:
+    """India regions with coordinates, optionally filtered by zone."""
+    regions = regions_in_zone(zone)
+    return {"count": len(regions), "zones": INDIA_ZONES, "regions": regions}
