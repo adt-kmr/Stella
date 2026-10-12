@@ -1,6 +1,6 @@
 """API route modules (one per documented endpoint family)."""
 
-from . import alerts, explain, impact, ingest, metrics, status, timeseries
+from . import alerts, explain, impact, ingest, meta, metrics, ops, status, timeseries
 
 routers = [
     status.router,
@@ -10,6 +10,8 @@ routers = [
     explain.router,
     metrics.router,
     ingest.router,
+    meta.router,
+    ops.router,
 ]
 
 __all__ = ["routers"]

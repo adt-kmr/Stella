@@ -14,11 +14,14 @@ from api.models import (
 )
 from api.reference import INDIA_REGIONS
 from api.routers.meta import router as meta_router
+from api.routers.ops import router as ops_router
+from api.store import store as _store
 from api.ws import manager
 
 app = FastAPI(title="Helios-Cortex API Server")
 
 app.include_router(meta_router, prefix="/api")
+app.include_router(ops_router, prefix="/api")
 
 # Allow CORS for local dev environment
 app.add_middleware(
@@ -33,6 +36,17 @@ app.add_middleware(
 _latest_status = None
 _timeseries_history = []
 _alerts_history = []
+
+
+def _mirror_to_store():
+    """Publish a compact snapshot into the shared store for the routers."""
+    if _latest_status is None:
+        return
+    snapshot = dict(_latest_status)
+    snapshot.setdefault("dataSource", "solexs_hel1os")
+    _store.set("latest", snapshot)
+    _store.set("buffered_points", len(_timeseries_history))
+    _store.set("buffered_alerts", len(_alerts_history))
 
 def get_noaa_goes_history():
     try:
@@ -200,6 +214,7 @@ def init_history():
 @app.on_event("startup")
 async def startup_event():
     init_history()
+    _mirror_to_store()
 
 @app.get("/api/status", response_model=UnifiedStatusModel)
 def get_status():
@@ -1050,6 +1065,8 @@ async def update_telemetry(update: TelemetryUpdate):
     if len(_timeseries_history) > 20000:
         _timeseries_history = _timeseries_history[-17280:]
         
+    _mirror_to_store()
+
     # Broadcast to all active WebSocket connections
     await manager.broadcast(json.dumps(_latest_status))
     return {"status": "ok"}

@@ -32,5 +32,5 @@ def operator_runtime(store: Store = Depends(get_store)) -> dict:  # noqa: B008
         store.latest(),
         uptime_seconds=time.monotonic() - _STARTED_AT,
         buffered_points=int(store.get("buffered_points", 0) or 0),
-        buffered_alerts=store.alert_count(),
+        buffered_alerts=int(store.get("buffered_alerts", store.alert_count()) or 0),
     )
