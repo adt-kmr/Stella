@@ -12,7 +12,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 
 from api.config import settings
+from api.reference import FLARE_CLASS_REFERENCE
 from api.store import Store, get_store
+from pipeline.impact import DOMAINS
 
 router = APIRouter(tags=["metadata"])
 
@@ -39,3 +41,15 @@ def version(store: Store = Depends(get_store)) -> dict:  # noqa: B008
         "modelVersion": latest.get("modelVersion", settings.app_version),
         "apiSurface": "v1",
     }
+
+
+@router.get("/classes")
+def flare_classes() -> dict:
+    """Reference table for the GOES A/B/C/M/X flare scale."""
+    return {"scale": FLARE_CLASS_REFERENCE, "count": len(FLARE_CLASS_REFERENCE)}
+
+
+@router.get("/domains")
+def monitored_domains() -> dict:
+    """The infrastructure domains tracked by the impact engine."""
+    return {"domains": DOMAINS, "count": len(DOMAINS)}
