@@ -90,6 +90,7 @@ def get_noaa_goes_history():
 # Initialize historical telemetry at startup so charts are pre-populated
 def init_history():
     global _timeseries_history, _latest_status, _alerts_history
+    _timeseries_history = []  # start fresh when the app restarts (idempotent startup)
     print("Pre-populating historical data...")
     
     # Set default status immediately so API responds right away
