@@ -1,0 +1,50 @@
+{
+  "seed": 42,
+
+  "data": {
+    "cadence_minutes": 1.0,
+    "cache_dir": ".stella_cache",
+
+    "sxr": {
+      "files": ["REQUIRED: glob(s) to your SoLEXS files, e.g. /data/solexs/**/*.fits"],
+      "format": "auto",
+      "hdu": 1,
+      "time": {"column": "REQUIRED: SoLEXS time column", "format": "REQUIRED: iso | unix | mjd | elapsed_seconds", "epoch": null},
+      "long": "REQUIRED: long-channel flux column (or [list of columns that are summed])",
+      "short": "REQUIRED: short-channel flux column (or null if unavailable)",
+      "bad_values": null
+    },
+
+    "hxr": {
+      "files": ["REQUIRED: glob(s) to your HEL1OS files"],
+      "format": "auto",
+      "hdu": 1,
+      "time": {"column": "REQUIRED: HEL1OS time column", "format": "REQUIRED: iso | unix | mjd | elapsed_seconds", "epoch": null},
+      "counts_lo": "REQUIRED: low-band counts column (or [list of columns that are summed])",
+      "counts_hi": "REQUIRED: high-band counts column (or [list of columns that are summed])",
+      "live_time": "REQUIRED: live-time column (same time unit you want rates in)",
+      "bad_values": null
+    },
+
+    "catalog": {
+      "file": "REQUIRED: flare catalog file (onset, peak, end, class)",
+      "format": "csv",
+      "hdu": 1,
+      "time": {"format": "iso", "epoch": null},
+      "start": "REQUIRED: onset time column",
+      "peak": "REQUIRED: peak time column",
+      "end": "REQUIRED: end time column",
+      "class": "REQUIRED: class column (e.g. C2.3) -- or set to null and give peak_flux",
+      "peak_flux": null
+    },
+
+    "splits": {
+      "train": ["REQUIRED: train start, e.g. 2024-01-01T00:00:00", "REQUIRED: train end"],
+      "val":   ["REQUIRED: val start", "REQUIRED: val end"],
+      "test":  ["REQUIRED: test start", "REQUIRED: test end"]
+    }
+  },
+
+  "nowcaster":  { "context_minutes": 30,  "train": {"epochs": 30, "batch_size": 256, "lr": 0.001, "optimizer": "adamw"} },
+  "forecaster": { "context_minutes": 253, "train": {"epochs": 30, "batch_size": 256, "lr": 0.001, "optimizer": "adamw"} }
+}

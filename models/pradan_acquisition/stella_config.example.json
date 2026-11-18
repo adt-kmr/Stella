@@ -1,0 +1,152 @@
+{
+  "seed": 42,
+  "data": {
+    "cadence_minutes": 1.0,
+    "cache_dir": ".stella_cache",
+    "sxr": {
+      "files": [
+        "stella_data/solexs/**/*"
+      ],
+      "format": "auto",
+      "hdu": 1,
+      "time": {
+        "column": "REQUIRED: SoLEXS time column",
+        "format": "REQUIRED: iso | unix | mjd | elapsed_seconds",
+        "epoch": null
+      },
+      "long": "REQUIRED: long-channel flux column (or [list of columns that are summed])",
+      "short": "REQUIRED: short-channel flux column (or null if unavailable)",
+      "bad_values": null
+    },
+    "hxr": {
+      "files": [
+        "stella_data/hel1os/**/*"
+      ],
+      "format": "auto",
+      "hdu": 1,
+      "time": {
+        "column": "REQUIRED: HEL1OS time column",
+        "format": "REQUIRED: iso | unix | mjd | elapsed_seconds",
+        "epoch": null
+      },
+      "counts_lo": "REQUIRED: low-band counts column (or [list of columns that are summed])",
+      "counts_hi": "REQUIRED: high-band counts column (or [list of columns that are summed])",
+      "live_time": "REQUIRED: live-time column (same time unit you want rates in)",
+      "bad_values": null
+    },
+    "catalog": {
+      "file": "stella_data/catalog/REQUIRED-catalog-file-name",
+      "format": "csv",
+      "hdu": 1,
+      "time": {
+        "format": "iso",
+        "epoch": null
+      },
+      "start": "REQUIRED: onset time column",
+      "peak": "REQUIRED: peak time column",
+      "end": "REQUIRED: end time column",
+      "class": "REQUIRED: class column (e.g. C2.3) -- or set to null and give peak_flux",
+      "peak_flux": null
+    },
+    "splits": {
+      "train": [
+        "REQUIRED: train start, e.g. 2024-01-01T00:00:00",
+        "REQUIRED: train end"
+      ],
+      "val": [
+        "REQUIRED: val start",
+        "REQUIRED: val end"
+      ],
+      "test": [
+        "REQUIRED: test start",
+        "REQUIRED: test end"
+      ]
+    }
+  },
+  "nowcaster": {
+    "context_minutes": 30,
+    "train": {
+      "epochs": 30,
+      "batch_size": 256,
+      "lr": 0.001,
+      "optimizer": "adamw"
+    }
+  },
+  "forecaster": {
+    "context_minutes": 253,
+    "train": {
+      "epochs": 30,
+      "batch_size": 256,
+      "lr": 0.001,
+      "optimizer": "adamw"
+    }
+  },
+  "pradan": {
+    "data_dir": "stella_data",
+    "inbox_dir": "REQUIRED-only-for-ingest: folder where your PRADAN web-UI ZIP/bulk downloads were saved (or null)",
+    "base_url": "REQUIRED: PRADAN base URL you use after login (taken from your browser)",
+    "auth": {
+      "mode": "REQUIRED: none | bearer | basic | form_login  (PRADAN documents registration + login only; see report)",
+      "token_env": "PRADAN_TOKEN",
+      "username_env": "PRADAN_USERNAME",
+      "password_env": "PRADAN_PASSWORD",
+      "login_url": "REQUIRED-if-form_login: login form action URL",
+      "form_fields": {
+        "REQUIRED-field-name-for-username": "env:PRADAN_USERNAME",
+        "REQUIRED-field-name-for-password": "env:PRADAN_PASSWORD"
+      },
+      "get_login_page_first": false,
+      "failure_text": null,
+      "success_url_contains": null,
+      "session_expired_marker": null
+    },
+    "http": {
+      "timeout_s": 60,
+      "retries": 4,
+      "backoff_s": 2.0,
+      "chunk_bytes": 1048576,
+      "verify_tls": true
+    },
+    "datasets": [
+      {
+        "name": "solexs",
+        "kind": "sxr",
+        "subdir": "solexs",
+        "listing": {
+          "mode": "REQUIRED: url_list_file | html_index",
+          "file": "REQUIRED-if-url_list_file: text file of file URLs",
+          "url": "REQUIRED-if-html_index: listing page URL",
+          "link_regex": "href=\"([^\"]+)\""
+        },
+        "include_regex": "REQUIRED: regex matching SoLEXS file names you want",
+        "exclude_regex": null
+      },
+      {
+        "name": "hel1os",
+        "kind": "hxr",
+        "subdir": "hel1os",
+        "listing": {
+          "mode": "REQUIRED: url_list_file | html_index",
+          "file": "REQUIRED",
+          "url": "REQUIRED",
+          "link_regex": "href=\"([^\"]+)\""
+        },
+        "include_regex": "REQUIRED: regex matching HEL1OS file names you want",
+        "exclude_regex": null
+      },
+      {
+        "name": "flare_catalog",
+        "kind": "catalog",
+        "subdir": "catalog",
+        "listing": {
+          "mode": "REQUIRED: url_list_file | html_index",
+          "file": "REQUIRED",
+          "url": "REQUIRED",
+          "link_regex": "href=\"([^\"]+)\""
+        },
+        "include_regex": "REQUIRED: regex matching the catalog file name",
+        "exclude_regex": null
+      }
+    ]
+  }
+}

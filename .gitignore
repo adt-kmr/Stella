@@ -7,6 +7,12 @@ models/*
 !models/.gitkeep
 !models/README.md
 
+# Bundled ML tooling and PRADAN acquisition scripts kept beside the weights.
+!models/ml_training_suite/
+!models/ml_training_suite/**
+!models/pradan_acquisition/
+!models/pradan_acquisition/**
+
 # Satellite data caches (regenerable via scripts/download_data.py)
 data/*
 !data/.gitkeep
